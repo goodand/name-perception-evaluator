@@ -38,11 +38,59 @@ def test_gpt_tail_is_flagged_and_only_for_gpt():
     assert "json" not in cs.INSTR.lower()
 
 
-def test_run_reports_prompt_warnings(tmp_path, monkeypatch):
+def test_dirty_prompt_is_not_sent_without_fix(tmp_path, monkeypatch):
+    """걸린 지시문은 응답자에게 가지 않는다: 고칠 수단이 없으면 수집 전에 멈춘다."""
     monkeypatch.setattr(cs, "INSTR", cs.INSTR + " JSON으로 답하세요.")
-    out = rn.run(PROFILE, BRIEF, ["name-forecast"], tmp_path, rounds=1, backend_factory=fake_factory([]),
-                 check_network=False)
-    assert any("json" in w for w in out["lint"])
+    sent = []
+    try:
+        rn.run(PROFILE, BRIEF, ["name-forecast"], tmp_path, rounds=1, backend_factory=fake_factory(sent), check_network=False)
+        raise AssertionError("PromptRejected가 나야 함")
+    except pc.PromptRejected as e:
+        assert "json" in str(e)
+    assert sent == []  # 한 번도 보내지 않음
+    assert (tmp_path / "prompt_gate.json").is_file()
+
+
+def test_gate_loop_revises_until_clean(tmp_path, monkeypatch):
+    """걸리면 고침 → 다시 검사를 반복하고, 깨끗해진 지시문만 보낸다."""
+    monkeypatch.setattr(cs, "INSTR", cs.INSTR + " JSON software 형식으로.")
+    calls = []
+
+    def reviser(text, words):  # 한 번에 한 단어씩만 지우는 고침(루프가 여러 번 도는지 본다)
+        calls.append(words)
+        w = words[0]
+        return __import__("re").sub(w, "", text, flags=__import__("re").I)
+    seen = []
+
+    def make(kind, model, art_dir):
+        def call(names, timeout):
+            seen.append(cs.INSTR)
+            return {"items": [{"id": n["id"], "term": n["term"], "explanation": "이름 뜻을 미리 확인하는 것"} for n in names]}
+        return call
+    out = rn.run(PROFILE, BRIEF, ["name-forecast"], tmp_path, rounds=1, backend_factory=make, check_network=False,
+                 prompt_reviser=reviser)
+    assert len(calls) >= 2 and seen and all(not pc.check(s) for s in seen)
+    assert any("프롬프트 거름" in w for w in out["lint"])
+    assert "JSON" not in cs.INSTR or cs.INSTR.endswith("형식으로.")  # 실행 뒤 원래 값으로 복구(monkeypatch 값)
+
+
+def test_gate_gives_up_after_max_rounds():
+    try:
+        pc.gate({"x": "code code"}, reviser=lambda t, w: t, max_rounds=2)
+        raise AssertionError
+    except pc.PromptRejected as e:
+        assert "2번" in str(e)
+
+
+def test_gate_keeps_slots_and_allows_recorded_exception():
+    out, log = pc.gate({"t": "{view} 판단하세요", "gpt 꼬리": cs.GPT_TAIL}, reviser=None,
+                       allow={"gpt 꼬리": ("json", "object")})
+    assert out["t"] == "{view} 판단하세요" and log[-1]["allowed"] == ["json", "object"]
+    try:
+        pc.gate({"t": "{view} code"}, reviser=lambda t, w: "판단하세요", max_rounds=1)  # 자리표시를 지운 고침은 실패
+        raise AssertionError
+    except pc.PromptRejected as e:
+        assert "자리표시" in str(e)
 
 
 def test_parse_plain_candidates():

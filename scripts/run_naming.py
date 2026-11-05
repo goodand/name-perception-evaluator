@@ -51,7 +51,7 @@ def _answerers(profile: dict) -> list[tuple[str, str]]:
 
 def run(profile: dict, brief: dict, names: list[str], out_dir: Path, rounds: int | None = None,
         backend_factory=None, check_network: bool = True, force_human: bool = False, timeout: float = 300, answerers=None,
-        reviewer=None, reviewer_factory=None) -> dict:
+        reviewer=None, reviewer_factory=None, prompt_reviser=None) -> dict:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     backend_factory = backend_factory or cs.make_backend
@@ -61,9 +61,31 @@ def run(profile: dict, brief: dict, names: list[str], out_dir: Path, rounds: int
     rules_path.write_text(json.dumps({"terms": list(rules.values())}, ensure_ascii=False, indent=1), encoding="utf-8")
 
     lint = ct.lint_context(rules)
-    import prompt_check  # 지시문 검사: 개발·SW 단어 경고(막지 않음)
-    lint += prompt_check.check_prompts({"답변자": cs.INSTR, **{f"관점:{v}": profile["perspectives"]["prompts"][v]
-                                                               for v in profile["perspectives"]["prompts"]}})
+    views = perspectives(brief, profile, force_human)
+    used = answerers or _answerers(profile)
+    # 프롬프트 거름 루프: 응답자·평가자에게 갈 지시문을 먼저 검사하고, 걸리면 고쳐 다시 검사. 깨끗해진 것만 보낸다
+    import prompt_check
+    import review_explanations as re_
+    want = {"답변자": cs.INSTR, **{f"관점:{v}": profile["perspectives"]["prompts"][v] for v in views if v != "developer"}}
+    if any(k == "gpt" for k, _ in used):
+        want["gpt 꼬리"] = cs.GPT_TAIL
+    if reviewer:
+        want["평가자"] = re_.INSTR
+        want.update({f"평가자 관점:{v}": t for v, t in re_.VIEWS.items()})
+    allow = {"gpt 꼬리": ("json", "object")}  # 동봉 gpt 실행기가 이 형식만 받는다(PROVENANCE). 이유를 기록하고 허용
+    try:
+        clean, gate_log = prompt_check.gate(want, prompt_reviser, allow=allow)
+    finally:
+        (out_dir / "prompt_gate.json").write_text(json.dumps(locals().get("gate_log", []), ensure_ascii=False, indent=1),
+                                                   encoding="utf-8")
+    saved = (cs.INSTR, re_.INSTR, dict(re_.VIEWS))
+    cs.INSTR = clean["답변자"]
+    prompts = {**profile["perspectives"]["prompts"], **{k.split(":", 1)[1]: v for k, v in clean.items() if k.startswith("관점:")}}
+    if reviewer:
+        re_.INSTR = clean["평가자"]
+        re_.VIEWS.update({k.split(":", 1)[1]: v for k, v in clean.items() if k.startswith("평가자 관점:")})
+    revised = sorted({g["prompt"] for g in gate_log if g["round"] > 0})
+    lint += [f"프롬프트 거름: {', '.join(revised)} 고쳐서 보냄(prompt_gate.json)"] if revised else []
     if ct.RISKY_DEFAULT.exists():
         lint += ct.lint_names(rules, json.loads(ct.RISKY_DEFAULT.read_text(encoding="utf-8")))
 
@@ -73,9 +95,18 @@ def run(profile: dict, brief: dict, names: list[str], out_dir: Path, rounds: int
 
         avail = {n: ca.check(n)["overall"] for n in names}
 
-    views = perspectives(brief, profile, force_human)
-    prompts = profile["perspectives"]["prompts"]
-    for kind, model in answerers or _answerers(profile):
+    try:
+        return _collect_and_judge(profile, rules, rules_path, names, out_dir, rounds, backend_factory, timeout, used, views,
+                                  prompts, lint, avail, reviewer, reviewer_factory)
+    finally:
+        cs.INSTR, re_.INSTR = saved[0], saved[1]
+        re_.VIEWS.clear()
+        re_.VIEWS.update(saved[2])
+
+
+def _collect_and_judge(profile, rules, rules_path, names, out_dir, rounds, backend_factory, timeout, used, views, prompts,
+                       lint, avail, reviewer, reviewer_factory):
+    for kind, model in used:
         d = out_dir / model.replace("/", "_")  # 모델별 폴더: 같은 폴더면 이어받기가 다른 모델 표본을 건너뛴다
         d.mkdir(exist_ok=True)
         call = backend_factory(kind, model, d / "art")
@@ -109,7 +140,9 @@ def run(profile: dict, brief: dict, names: list[str], out_dir: Path, rounds: int
 
 def _report(path: Path, rules: dict, res: dict, sel: dict, lint: list, avail: dict, views: list,
             warnings: list = (), rev: dict | None = None) -> None:
+    gate = [w for w in lint if w.startswith("프롬프트 거름")]
     lines = ["# 명명 검증 결과", "", f"관점: {', '.join(views)}", "",
+             f"프롬프트 거름: {gate[0] if gate else '통과(고침 없음)'} — 걸린 지시문은 고쳐 다시 검사한 뒤에만 보냄", "",
              "| 이름 | 통과 | 오독률 | 제외 | 충돌(참고) | 오독 근거 |", "|---|---|---|---|---|---|"]
     for rid, s in res.items():
         rate = f'{s["misread_n"]}/{s["n"]}' if s["n"] else "-"

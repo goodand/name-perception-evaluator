@@ -93,6 +93,13 @@ def cmd_lint(a):
 def cmd_generate(a):
     prof = _load(PROFILE)
     prompt = nk.gen_prompt(_load(a.brief), prof, a.n)
+    import prompt_check as pc  # 생성자에게 갈 프롬프트도 같은 거름 루프(브리프 문장에 섞인 단어까지)
+    try:
+        prompt = pc.gate({"생성자": prompt}, pc.claude_reviser(a.prompt_reviser.split(":", 1)[-1])
+                         if a.prompt_reviser != "none" else None)[0]["생성자"]
+    except pc.PromptRejected as e:
+        _emit({"ok": False, "prompt_rejected": str(e)}, a.json, f"프롬프트 거름 실패(생성자에게 보내지 않음): {e}")
+        return 1
     paths = nk.generate(a.models.split(","), Path(a.out), prompt=prompt)
     batches = nk.load_batches(paths)
     _emit({"batches": [str(p) for p in paths], "counts": [len(b) for b in batches]}, a.json,
@@ -130,8 +137,16 @@ def cmd_run(a):
         if errs:
             _emit({"ok": False, "errors": errs}, a.json, "\n".join(errs))
             return 1
-    out = rn.run(prof, b, kept, Path(a.out), a.rounds, check_network=not a.no_network, force_human=a.human,
-                 answerers=answerers, reviewer=tuple(a.review.split(":", 1)) if a.review else None)
+    import prompt_check as pc
+    fixer = None if a.prompt_reviser == "none" else pc.claude_reviser(a.prompt_reviser.split(":", 1)[-1])
+    try:
+        out = rn.run(prof, b, kept, Path(a.out), a.rounds, check_network=not a.no_network, force_human=a.human,
+                     answerers=answerers, reviewer=tuple(a.review.split(":", 1)) if a.review else None,
+                     prompt_reviser=fixer)
+    except pc.PromptRejected as e:  # 걸린 지시문은 보내지 않는다
+        _emit({"ok": False, "prompt_rejected": str(e), "gate_log": str(Path(a.out) / "prompt_gate.json")}, a.json,
+              f"프롬프트 거름 실패(응답자에게 보내지 않음): {e}")
+        return 1
     summary = {"selected": out["selected"], "fallback": out["fallback"], "warnings": out["warnings"], "dropped": dropped,
                "report": str(Path(a.out) / "report.md"),
                "names": {s["term"]: {"pass": s["pass"], "n": s["n"], "misread_n": s["misread_n"],
@@ -277,6 +292,7 @@ def main(argv=None) -> int:
     s.add_argument("out")
     s.add_argument("--brief", default=str(ROOT / "docs/harness/briefs/name-harness.json"))
     s.add_argument("--n", type=int, default=20)
+    s.add_argument("--prompt-reviser", default="claude:sonnet", help="걸린 프롬프트를 고칠 격리 모델, none이면 고치지 않고 멈춤")
     s = add("lint", cmd_lint, "후보 형식 거르기 + 위험 단어·길이·맥락 경고(수집 전)")
     s.add_argument("brief")
     s.add_argument("names", help="쉼표 목록 또는 한 줄에 하나인 파일")
@@ -292,6 +308,7 @@ def main(argv=None) -> int:
     s.add_argument("--no-network", action="store_true")
     s.add_argument("--sep", default="-", choices=["-", "_"])
     s.add_argument("--no-local", action="store_true", help="로컬 LLM(LM Studio) 답변자 금지, 서버도 켜지 않음")
+    s.add_argument("--prompt-reviser", default="claude:sonnet", help="걸린 지시문을 고칠 격리 모델(최대 3회 고침→재검사). none이면 고치지 않고 멈춤")
     s.add_argument("--review", help="격리 평가자(경고만), 예: claude:sonnet. 사람 관점(UX·최종 사용자)으로 설명문을 다시 본다")
     s.add_argument("--answerers", help="프로필 기본 대신, 예: claude:haiku,gpt:gpt-6-luna,qwen:qwen/qwen3.8-27b")
     s = add("judge", cmd_judge, "이미 받은 표본을 규칙으로 판정")

@@ -42,7 +42,7 @@
 | 에이전트 | 거른다 | 후보 형식·길이, 위험 단어 | `namecheck lint <brief> <후보> --json` |
 | 에이전트 | 조회한다 | 이름 충돌(참고 정보) | `namecheck availability <후보> --json` |
 | 에이전트 | 확인한다 | 쓸 수 있는 답변자 백엔드 | `namecheck doctor --json` |
-| 에이전트 | 돌린다 | 수집→오독 게이트→선택 | `namecheck run <brief> <후보> <out> [--human] [--answerers claude:haiku,gpt:gpt-6-luna,qwen:<id>] [--no-local] --json` (qwen이 있으면 LM Studio를 자동으로 켬. GPU를 다른 세션이 쓰면 `--no-local`) |
+| 에이전트 | 돌린다 | 수집→오독 게이트→선택 | `namecheck run <brief> <후보> <out> [--human] [--answerers claude:haiku,gpt:gpt-6-luna,qwen:<id>] [--no-local] [--prompt-reviser claude:sonnet|none] --json` (보내기 전 프롬프트 거름 루프: 개발·SW 단어·형식 요구가 걸리면 그 지시문은 보내지 않고 격리 모델이 고침→다시 검사, 최대 3회. 안 되면 종료 코드 1, 기록 `<out>/prompt_gate.json`. qwen이 있으면 LM Studio를 자동으로 켬. GPU를 다른 세션이 쓰면 `--no-local`) |
 | 에이전트 | 다시 본다 | 설명문(격리 평가자, 사람 관점, 경고만) | `namecheck run … --review claude:sonnet` 또는 `python scripts/review_explanations.py <rules.json> <out.json> <표본…> [--view end_user\|ux]`. 평가자는 의도·이웃 개념 이름·설명문만 받고 규칙 신호어·판정·다른 후보는 받지 않는다 |
 | 에이전트 | 찾는다 | 한 묶음 이름끼리 뜻 겹침(예: 칸 이름 10개) | `namecheck overlap --rules <이름마다 자기 must가 있는 rules.json> --samples <out>/*/*.jsonl --json` (A의 설명이 B의 must를 모두 채우면 겹침, 종료 코드 2 → 둘 중 하나를 바꾼다) |
 | 에이전트 | 모은다 | 키워드별 오독률 | `namecheck risk --rules <out>/rules.json --samples <out>/*/*.jsonl --json` |

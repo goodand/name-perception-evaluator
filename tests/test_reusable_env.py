@@ -38,7 +38,8 @@ def test_lmstudio_url_env_single_source(monkeypatch):
 def test_no_ldx_default_paths():
     for script, msg in (("check_terms.py", "규칙 파일"), ("ask_local_llm.py", "용어 파일")):
         cp = subprocess.run([sys.executable, str(ROOT / "scripts" / script)] + (["x", "1", "o.json"] if "ask" in script else []),
-                            capture_output=True, text=True, encoding="utf-8")
+                            capture_output=True, text=True, encoding="utf-8",
+                            env={**__import__("os").environ, "PYTHONIOENCODING": "utf-8"})
         assert cp.returncode != 0 and msg in (cp.stderr + cp.stdout), script
     for f in ("check_terms.py", "ask_local_llm.py"):
         assert "docs/glossary" not in (ROOT / "scripts" / f).read_text(encoding="utf-8").split('"""', 2)[2]
