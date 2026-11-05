@@ -104,3 +104,17 @@ def test_token_outcomes():
     assert to["meaning"] == {"names": 2, "pass": 11, "n": 12, "misread_n": 1, "excluded": 1}
     assert to["preview"]["n"] == 6  # 표본 0개 이름은 n에 안 더함
     assert "name" not in to  # 표본이 하나도 없는 키워드는 뺀다
+
+
+def test_combine_keywords_rule_based():
+    """생성 20개씩 → 파싱 → 키워드 조합으로 후보 추가(사용자 2026-11-04). 중복 키워드 없음, 기존 이름 제외, [대상]-[역할] 순서."""
+    batches = [["name-echo", "name-probe", "sense-check"], ["name-probe", "meaning-echo", "word-check"],
+               ["meaning-probe", "name-check", "sense-echo"]]
+    got = nk.combine(batches, max_keywords=3, top=50, min_batches=2)
+    names = [c["name"] for c in got]
+    assert names and all(len(set(c["keywords"])) == len(c["keywords"]) for c in got)
+    assert not set(names) & {n for b in batches for n in b}
+    assert all(c["keywords"][0] in {"name", "meaning", "sense"} for c in got)  # 앞자리에 많이 온 키워드가 앞
+    assert all(c["keywords"][-1] in {"echo", "probe", "check"} for c in got)
+    assert "word" not in " ".join(names)  # 한 묶음에만 나온 키워드는 쓰지 않음
+    assert got == sorted(got, key=lambda c: (len(c["keywords"]), -c["score"], c["name"]))  # 짧은 이름 먼저

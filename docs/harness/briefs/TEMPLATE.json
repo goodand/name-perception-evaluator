@@ -1,0 +1,28 @@
+{
+ "about": "브리프 빈칸 틀. 복사해 <…>를 채운다: `namecheck brief-new <주제> <out.json>`. 다 채우면 `namecheck brief-check`. 평가자 맥락이며 답변자에게는 주지 않는다. 생성자에게는 purpose·human_actions만 간다(프롬프트 거름을 거친 뒤).",
+ "subject": "<무엇의 이름인가. 예: 결정 템플릿의 칸 이름>",
+ "definition": {
+  "pattern": "사람이 {xx}끼리 대조해 {yy}를 파악하고 {zz}를 결정한다",
+  "xx": "<무엇끼리 대조하나>",
+  "yy": "<무엇을 파악하나>",
+  "zz": "<무엇을 결정하나 — 행 하나가 아니라 '조건'에 대한 결정이면 그렇게>"
+ },
+ "purpose": "<비워 두면 definition.pattern을 채운 문장을 쓴다. 따로 쓰려면 한 문장>",
+ "human_actions": [
+  {"actor": "<주체>", "action": "<행동(술어)>", "object": "<대상(명사)>"}
+ ],
+ "role": "<이 이름이 맡는 역할, 무엇과 구분되는 단계인지>",
+ "audience": "<developer | end-user | mixed>",
+ "distinct_from": {"<헷갈리면 안 되는 이웃 개념>": "<그것을 잡는 misread_as 분야 이름 또는 contrasts 이름>"},
+ "misread_as": {"<분야>": ["<그 뜻으로 읽혔다는 신호어(동작+결과 쌍 권장, 이름 자체 단어 금지)>"]},
+ "contrasts": [],
+ "must": [
+  {"label": "<조건 이름>", "any": ["<의도대로 읽혔다는 신호어>"]}
+ ],
+ "conditions": {
+  "required": ["M1 처음 보는 사람이 의도한 뜻(대상+역할)으로 읽는다", "M2 사람 관점(UX·최종 사용자)에서도 M1", "M3 키워드 3개 이하", "M4 이름에 대상이 있다", "M5 같은 묶음의 다른 이름과 같은 뜻으로 읽히지 않는다(묶음일 때)"],
+  "optional": ["O1 오독 0(없으면 오독률 최저)", "O2 통과율 높음", "O3 동점이면 기존안"],
+  "note": "기본값은 docs/harness/REPO_DEFINITION.md. 주제에 따라 고쳐 쓴다"
+ },
+ "status": "<후보 검증 중 | 확정 이름(날짜·근거)>"
+}

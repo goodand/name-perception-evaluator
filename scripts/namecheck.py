@@ -31,9 +31,33 @@ def _names(arg: str) -> list[str]:
     return [x.strip() for x in src if x.strip()]
 
 
+TEMPLATE = ROOT / "docs/harness/briefs/TEMPLATE.json"
+
+
+def fill_purpose(b: dict) -> dict:
+    """purpose가 비었거나 빈칸 그대로면 definition.pattern({xx}·{yy}·{zz})을 채워 쓴다(사용자 정의 틀)."""
+    d = b.get("definition") or {}
+    p = b.get("purpose", "")
+    if (not str(p).strip() or "<" in str(p)) and d.get("pattern"):
+        b = {**b, "purpose": d["pattern"].format(**{k: v for k, v in d.items() if k != "pattern"})}
+    return b
+
+
+def _unfilled(x, path="") -> list[str]:
+    if isinstance(x, str):
+        return [path] if x.strip().startswith("<") and x.strip().endswith(">") else []
+    if isinstance(x, dict):
+        return [p for k, v in x.items() if k not in ("about", "conditions") for p in _unfilled(k, f"{path}.{k}(키)")
+                + _unfilled(v, f"{path}.{k}")]
+    if isinstance(x, list):
+        return [p for i, v in enumerate(x) for p in _unfilled(v, f"{path}[{i}]")]
+    return []
+
+
 def check_brief(b: dict) -> list[str]:
     """브리프(빈칸에 들어갈 값)의 자료형·형식 검사. 허용 값 목록이 아니라 형식만 강제한다."""
-    e = []
+    b = fill_purpose(b)
+    e = [f"빈칸 그대로: {p.lstrip('.')}" for p in _unfilled(b)]
     if not (isinstance(b.get("purpose"), str) and b["purpose"].strip()):
         e.append("purpose: 비어 있지 않은 문장이어야 함")
     acts = b.get("human_actions")
@@ -72,6 +96,18 @@ def _emit(obj, as_json: bool, text: str = "") -> None:
     print(json.dumps(obj, ensure_ascii=False, indent=1) if as_json else text)
 
 
+def cmd_brief_new(a):
+    import shutil
+
+    out = Path(a.out)
+    if out.exists():
+        _emit({"ok": False, "error": f"{out} 이미 있음"}, a.json, f"{out} 이미 있음(덮어쓰지 않음)")
+        return 1
+    shutil.copyfile(TEMPLATE, out)
+    _emit({"ok": True, "brief": str(out)}, a.json, f"{out} 만듦: <…>를 채운 뒤 brief-check")
+    return 0
+
+
 def cmd_brief_check(a):
     errs = check_brief(_load(a.brief))
     _emit({"ok": not errs, "errors": errs}, a.json, "\n".join(errs) or "브리프 형식 OK")
@@ -83,7 +119,7 @@ def cmd_lint(a):
 
     prof = _load(PROFILE)
     kept, dropped = filter_names(_names(a.names), prof["max_keywords"], a.sep)
-    rules = rn.build_rules(_load(a.brief), kept)
+    rules = rn.build_rules(fill_purpose(_load(a.brief)), kept)
     warns = ct.lint_context(rules) + ct.lint_names(rules, _load(ct.RISKY_DEFAULT))
     _emit({"kept": kept, "dropped": dropped, "warnings": warns}, a.json,
           "\n".join([f"탈락 {n}: {r}" for n, r in dropped] + [f"경고 {w}" for w in warns]) or "문제 없음")
@@ -92,7 +128,7 @@ def cmd_lint(a):
 
 def cmd_generate(a):
     prof = _load(PROFILE)
-    prompt = nk.gen_prompt(_load(a.brief), prof, a.n)
+    prompt = nk.gen_prompt(fill_purpose(_load(a.brief)), prof, a.n)
     import prompt_check as pc  # 생성자에게 갈 프롬프트도 같은 거름 루프(브리프 문장에 섞인 단어까지)
     try:
         prompt = pc.gate({"생성자": prompt}, pc.claude_reviser(a.prompt_reviser.split(":", 1)[-1])
@@ -119,7 +155,7 @@ def cmd_availability(a):
 def cmd_run(a):
     import run_naming as rn
 
-    b = _load(a.brief)
+    b = fill_purpose(_load(a.brief))
     errs = check_brief(b)
     if errs:
         _emit({"ok": False, "errors": errs}, a.json, "\n".join(errs))
@@ -184,6 +220,14 @@ def cmd_stats(a):
     _emit([{"keyword": k, **{x: v[x] for x in ("batches", "count")}} for k, v in st], a.json,
           "\n".join(f'{k} {v["batches"]}/{len(batches)} {v["count"]}' for k, v in st))
     return 0
+
+
+def cmd_combine(a):
+    cands = nk.combine(nk.load_batches(a.batches), _load(PROFILE)["max_keywords"], a.top, a.min_batches)
+    if a.out:
+        Path(a.out).write_text("\n".join(c["name"] for c in cands) + "\n", encoding="utf-8")
+    _emit(cands, a.json, "\n".join(f'{c["name"]} ({c["score"]})' for c in cands) or "조합 없음")
+    return 0 if cands else 1
 
 
 def cmd_risk(a):
@@ -285,6 +329,8 @@ def main(argv=None) -> int:
         s.set_defaults(fn=fn)
         return s
 
+    s = add("brief-new", cmd_brief_new, "브리프 빈칸 틀(TEMPLATE.json)을 복사")
+    s.add_argument("out")
     s = add("brief-check", cmd_brief_check, "브리프 형식 검사(삼중항·필수 필드)")
     s.add_argument("brief")
     s = add("generate", cmd_generate, "격리 생성: 모델마다 새 프로세스 한 묶음")
@@ -321,6 +367,11 @@ def main(argv=None) -> int:
     s.add_argument("pairs", nargs="+", help="규칙::표본,표본")
     s = add("stats", cmd_stats, "생성 묶음 키워드 통계")
     s.add_argument("batches", nargs="+")
+    s = add("combine", cmd_combine, "생성 묶음 키워드를 규칙으로 조합해 후보 추가([대상]-[역할], 키워드 중복 없음)")
+    s.add_argument("batches", nargs="+")
+    s.add_argument("--top", type=int, default=30)
+    s.add_argument("--min-batches", type=int, default=2, help="이 수 이상 묶음에 나온 키워드만")
+    s.add_argument("--out", help="후보를 한 줄에 하나씩 쓸 파일(run에 그대로 넣을 수 있음)")
     s = add("risk", cmd_risk, "검증 결과를 키워드별 오독률로")
     s.add_argument("--rules", required=True)
     s.add_argument("--samples", nargs="+", required=True)

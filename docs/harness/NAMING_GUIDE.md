@@ -36,8 +36,10 @@
 
 | 주체 | 행동 | 대상 | 명령 |
 |---|---|---|---|
+| 에이전트 | 만든다 | 브리프 빈칸 틀(용어 정의 템플릿) | `namecheck brief-new <out.json>` → `<…>`를 채운다. `definition.pattern`(사람이 {xx}끼리 대조해 {yy}를 파악하고 {zz}를 결정한다)을 채우면 purpose가 자동으로 만들어진다 |
 | 에이전트 | 검사한다 | 브리프 형식 | `namecheck brief-check <brief> --json` (실패 시 종료 코드 1) |
 | 에이전트 | 만든다 | 후보 묶음(격리 생성) | `namecheck generate haiku,haiku,sonnet <out>/gen --brief <brief>` |
+| 에이전트 | 조합한다 | 생성 묶음 키워드로 후보 추가 | `namecheck combine <out>/gen/*.json --top 30 --out <후보.txt>` (2개 이상 묶음에 나온 키워드만, [대상]-[역할] 자리, 한 이름 안 중복 없음, 기존 이름 제외. 결과를 `run`에 그대로 넣는다) |
 | 에이전트 | 센다 | 묶음 키워드 통계 | `namecheck stats <out>/gen/*.json --json` |
 | 에이전트 | 거른다 | 후보 형식·길이, 위험 단어 | `namecheck lint <brief> <후보> --json` |
 | 에이전트 | 조회한다 | 이름 충돌(참고 정보) | `namecheck availability <후보> --json` |

@@ -125,6 +125,38 @@ def diversity(by_source: dict) -> dict:
     return out
 
 
+def combine(batches: list[list[str]], max_keywords: int = 3, top: int = 30, min_batches: int = 2) -> list[dict]:
+    """생성 묶음에서 키워드를 뽑아 새 후보를 규칙으로 조합한다(사람·평가자 판단 없음, 사용자 2026-11-04 지시).
+    - 키워드는 min_batches개 이상 묶음에 나온 것만(우연한 단어 제외)
+    - 자리: 생성 이름에서 그 키워드가 맨 앞에 온 횟수가 많으면 앞(대상), 맨 뒤가 많으면 뒤(역할). [대상]-[역할] 순서를 따른다
+    - 한 이름 안에서 키워드 중복 없음, 이미 생성된 이름은 뺌, 키워드 수는 2~max_keywords
+    - 점수 = 키워드 등장 묶음 수의 합. 동점은 이름순"""
+    st = keyword_stats(batches)
+    seen = {n for b in batches for n in b}
+    first, last = Counter(), Counter()
+    for n in seen:
+        ts = tokens(n)
+        if len(ts) > 1:
+            first[ts[0]] += 1
+            last[ts[-1]] += 1
+    keep = [k for k, v in st.items() if v["batches"] >= min_batches]
+    heads = [k for k in keep if first[k] > last[k]]
+    tails = [k for k in keep if last[k] > first[k]]
+    mids = [k for k in keep if k not in heads and k not in tails]
+    out = {}
+    for h in heads:
+        for t in tails:
+            if h == t:
+                continue
+            cands = [[h, t]] + ([[h, m, t] for m in heads + mids if m not in (h, t)] if max_keywords >= 3 else [])
+            for ks in cands:
+                name = "-".join(ks)
+                if name not in seen and len(set(ks)) == len(ks):
+                    out[name] = {"name": name, "keywords": ks, "score": sum(st[k]["batches"] for k in ks),
+                                 "source": "combine"}
+    return sorted(out.values(), key=lambda c: (len(c["keywords"]), -c["score"], c["name"]))[:top]  # 짧은 이름 먼저
+
+
 def token_outcomes(res: dict) -> dict:
     """check_terms.score() 결과 → 키워드별 {names, pass, n, misread_n, excluded}. 표본 0개 이름은 뺀다."""
     out = {}

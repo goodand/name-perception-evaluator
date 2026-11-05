@@ -121,3 +121,19 @@ def test_no_local_blocks_local_answerers(monkeypatch):
     code = nc.main(["run", str(BRIEF), "name-echo", "unused_out", "--no-network", "--no-local",
                     "--answerers", "claude:haiku,qwen:qwen/qwen3.8-27b"])
     assert code == 1 and called == []
+
+
+def test_brief_template_new_and_unfilled(tmp_path):
+    """용어 정의 빈칸 틀(사용자 2026-11-05): brief-new로 복사, 빈칸 <…>가 남으면 brief-check 실패."""
+    out = tmp_path / "b.json"
+    assert nc.main(["brief-new", str(out)]) == 0 and nc.main(["brief-new", str(out)]) == 1  # 덮어쓰지 않음
+    errs = nc.check_brief(json.loads(out.read_text(encoding="utf-8")))
+    assert any("빈칸 그대로" in e for e in errs)
+
+
+def test_brief_purpose_from_definition_pattern():
+    b = {"definition": {"pattern": "사람이 {xx}끼리 대조해 {yy}를 파악하고 {zz}를 결정한다", "xx": "표", "yy": "차이",
+                        "zz": "남길 조건"}, "purpose": "", "human_actions": [{"actor": "사람", "action": "대조한다", "object": "표"}],
+         "audience": "end-user", "distinct_from": {"엑셀 비교": "c"}, "must": [{"label": "표", "any": ["표"]}]}
+    assert nc.fill_purpose(b)["purpose"] == "사람이 표끼리 대조해 차이를 파악하고 남길 조건를 결정한다"  # 틀은 조사를 안 바꾼다: 사용자가 pattern 문장을 직접 쓴다
+    assert nc.check_brief(b) == []
