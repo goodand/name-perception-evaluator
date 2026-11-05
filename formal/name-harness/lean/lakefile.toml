@@ -1,0 +1,7 @@
+name = "name_harness"
+version = "0.1.0"
+defaultTargets = ["NameHarness"]
+
+[[lean_lib]]
+name = "NameHarness"
+

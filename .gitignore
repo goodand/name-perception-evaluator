@@ -1,0 +1,20 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# 검증 결과물·답변·실행기 산출물 (저장소 밖 out/ 에 둔다)
+out/
+runs/
+art_*/
+art_review/
+*.jsonl
+!tests/**/*.jsonl
+review.json
+.lake/
+# 자료 파일은 올리지 않는다 (사용자 지시 2026-11-05)
+*.pdf
+*.csv
+*.xlsx
+*.xls
+*.hwp
+*.hwpx

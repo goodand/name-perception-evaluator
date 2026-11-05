@@ -1,0 +1,407 @@
+{
+ "about": "명명 실패 사례 데이터셋(회귀용). misreads: 이름→실제로 읽힌 뜻. token이 있으면 risky_tokens.json에 있어야 하고 lint_names가 경고해야 한다(tests/test_naming_failures.py). 출처 A·B·C = 이름 검증 세션 issue case(2026-11-04, fd9aca1·67c061b), semh = 명명 전담 세션 실측.",
+ "misreads": [
+  {
+   "names": [
+    "ldx"
+   ],
+   "read_as": "약어라 뜻 불명. 목록 호출 때 같이 있던 local-data-explorer의 뜻을 빌려 옴(목록 힌트 오염)",
+   "token": null,
+   "why_not_token": "약어·목록 오염은 단어 사전으로 못 잡음. 단독 호출(solo)로 막음",
+   "source": "A1"
+  },
+  {
+   "names": [
+    "program-data-explorer",
+    "program-table-explorer"
+   ],
+   "read_as": "앱(프로그램) 내부 데이터",
+   "token": "program",
+   "source": "A2"
+  },
+  {
+   "names": [
+    "grid_join",
+    "grid_pair",
+    "grid_diff",
+    "grid-decision-desk"
+   ],
+   "read_as": "격자·좌표·지도·전력망·게임",
+   "token": "grid",
+   "source": "A3"
+  },
+  {
+   "names": [
+    "source_diff"
+   ],
+   "read_as": "소스 코드 diff",
+   "token": "source",
+   "source": "A4"
+  },
+  {
+   "names": [
+    "decision-tabular-engine",
+    "decision-tabular-builder"
+   ],
+   "read_as": "의사결정 테이블(규칙 엔진)",
+   "token": "decision",
+   "source": "A5"
+  },
+  {
+   "names": [
+    "table_decide",
+    "grid_decide"
+   ],
+   "read_as": "의사결정 테이블·게임 로직",
+   "token": "decide",
+   "source": "A5"
+  },
+  {
+   "names": [
+    "studio-tabular-builder",
+    "studio-tabular-engine"
+   ],
+   "read_as": "노코드·GUI 편집 도구",
+   "token": "studio",
+   "source": "A6"
+  },
+  {
+   "names": [
+    "decision-tabular-dataset-builder",
+    "table-compare-dataset-builder"
+   ],
+   "read_as": "머신러닝 학습용 데이터셋 생성",
+   "token": "dataset",
+   "source": "A7"
+  },
+  {
+   "names": [
+    "decision-tabular-prep",
+    "tabular-prep"
+   ],
+   "read_as": "머신러닝 전처리(결측치·정규화)",
+   "token": "prep",
+   "source": "A7"
+  },
+  {
+   "names": [
+    "table_join",
+    "table_join_condition",
+    "join_condition"
+   ],
+   "read_as": "SQL JOIN·ON 절",
+   "token": "join",
+   "source": "A8"
+  },
+  {
+   "names": [
+    "table_select"
+   ],
+   "read_as": "SQL SELECT",
+   "token": "select",
+   "source": "A8"
+  },
+  {
+   "names": [
+    "merge-condition-builder",
+    "table-join-condition-builder"
+   ],
+   "read_as": "SQL MERGE·ON 조건절 빌더",
+   "token": "condition",
+   "source": "A8·semh s12"
+  },
+  {
+   "names": [
+    "merge_condition",
+    "merge-policy-builder"
+   ],
+   "read_as": "git 브랜치 병합",
+   "token": "merge",
+   "source": "A9·semh s12"
+  },
+  {
+   "names": [
+    "auto_merge",
+    "auto-merge-tool"
+   ],
+   "read_as": "git 자동 병합",
+   "token": "auto",
+   "source": "A9"
+  },
+  {
+   "names": [
+    "tabular-conflict-resolver"
+   ],
+   "read_as": "도구가 자동·규칙 기반으로 해결(사람 결정과 반대)",
+   "token": "resolver",
+   "source": "A10"
+  },
+  {
+   "names": [
+    "table_reconcile",
+    "grid_reconcile"
+   ],
+   "read_as": "도구가 대조해 맞춰 줌",
+   "token": "reconcile",
+   "source": "A10"
+  },
+  {
+   "names": [
+    "tabular-source-reconciler",
+    "tabular-record-reconciler"
+   ],
+   "read_as": "도구가 대조해 맞춰 줌",
+   "token": "reconciler",
+   "source": "A10"
+  },
+  {
+   "names": [
+    "table_triage",
+    "table-triage-builder"
+   ],
+   "read_as": "레코드가 아니라 테이블 단위 우선순위(처리 대상 단위 오독)",
+   "token": "triage",
+   "source": "A11·A13"
+  },
+  {
+   "names": [
+    "table_verdict"
+   ],
+   "read_as": "포커 게임 승패",
+   "token": "verdict",
+   "source": "A12"
+  },
+  {
+   "names": [
+    "table_judge"
+   ],
+   "read_as": "문서 이미지의 표 인식(studio capture와 겹침)",
+   "token": "judge",
+   "source": "A12"
+  },
+  {
+   "names": [
+    "table_region"
+   ],
+   "read_as": "문서·이미지의 표 영역(바운딩 박스, studio capture와 겹침)",
+   "token": "region",
+   "source": "A12"
+  },
+  {
+   "names": [
+    "table-keep-drop-builder"
+   ],
+   "read_as": "유지할 열·삭제할 열 선택",
+   "token": "keep",
+   "source": "A13"
+  },
+  {
+   "names": [
+    "table-retention-builder"
+   ],
+   "read_as": "보존 기간 정책",
+   "token": "retention",
+   "source": "A13"
+  },
+  {
+   "names": [
+    "table_venn",
+    "tabular-venn-builder"
+   ],
+   "read_as": "벤 다이어그램 차트 도구(8개 전부)",
+   "token": "venn",
+   "source": "A14"
+  },
+  {
+   "names": [
+    "local-data-explorer",
+    "tabular-source-explorer"
+   ],
+   "read_as": "보기 전용 탐색기(목적이 통합·결정일 때 0/6)",
+   "token": "explorer",
+   "source": "A15"
+  },
+  {
+   "names": [
+    "table-merge-rule-engine",
+    "tabular-merge-rule-engine"
+   ],
+   "read_as": "규칙을 정의하고 실행하는 엔진(판정 로직을 품은 엔진)",
+   "token": "engine",
+   "source": "semh s12"
+  },
+  {
+   "names": [
+    "merge-rule-builder",
+    "table-merge-policy-builder"
+   ],
+   "read_as": "코드의 빌더 패턴 라이브러리",
+   "token": "builder",
+   "source": "semh s12"
+  },
+  {
+   "names": [
+    "naming-harness",
+    "naming-validation-skill"
+   ],
+   "read_as": "네이밍 컨벤션 준수 검사",
+   "token": "naming",
+   "source": "semh s13·s14"
+  },
+  {
+   "names": [
+    "name-validation-harness"
+   ],
+   "read_as": "이름이 정해진 규칙에 맞는지 검사",
+   "token": "validation",
+   "source": "semh s13·s14"
+  },
+  {
+   "names": [
+    "name-semantic-linter"
+   ],
+   "read_as": "기존 코드 식별자를 정적으로 검사하는 린터(범위 좁음)",
+   "token": "linter",
+   "source": "semh s14"
+  },
+  {
+   "names": [
+    "name-misread-check-harness"
+   ],
+   "read_as": "오독만 잡는 도구로 목적이 좁게 읽힘(사용자 판단)",
+   "token": null,
+   "why_not_token": "단어 뜻은 맞게 읽혔고 범위 판단은 사용자 몫. 사전 경고 대상 아님",
+   "source": "semh s13 사용자"
+  }
+ ],
+ "harness": [
+  {
+   "id": "H1",
+   "issue": "규칙이 느슨해 대부분 통과, 변별은 설명문 직접 읽기에 의존. '두 테이블'처럼 넓은 단어가 SQL 조인 설명에도 나와 table_join 6/6",
+   "fix": "misread_as 게이트(v2.2)",
+   "source": "B1"
+  },
+  {
+   "id": "H2",
+   "issue": "대조 이름이 0/6이어도 후보가 대조와 같은 뜻으로 읽힘. 금지어가 표현 변형('그림을 그리' vs '시각화')을 못 잡음",
+   "fix": "misread_as 신호어를 분야별 여러 표현으로. 대조 이름이 통과하는지뿐 아니라 후보가 대조 분야로 읽히는지를 misread_as로 본다",
+   "source": "B2"
+  },
+  {
+   "id": "H3",
+   "issue": "짧은 식별자는 실행 주체(사람이 결정)를 담지 못함. 실행 주체를 must로 넣으면 전부 탈락",
+   "fix": "실행 주체는 must가 아니라 misread_as(자동 해결 분야)로 반대쪽을 막는다",
+   "source": "B3"
+  },
+  {
+   "id": "H4",
+   "issue": "gpt-6-luna 실행기가 약 75% 'OMP prompt did not complete' 실패(g4, semh reexp V1·V2 36회 중 33회)",
+   "fix": "수집기 이어받기 반복. 실패는 failed 표본으로 남아 판정에서 빠짐",
+   "source": "B4·semh reexp"
+  },
+  {
+   "id": "H5",
+   "issue": "로컬 Qwen 타임아웃 없이 멈춤, dsprobe venv yaml 폴더가 비어 import 실패",
+   "fix": "--timeout, check_terms의 yaml 지연 import(v2.1)",
+   "source": "B5"
+  },
+  {
+   "id": "H6",
+   "issue": "같은 폴더에서 두 세션이 같은 규칙 파일 이름(gui_kind_names_v3.json)을 써서 덮어씀",
+   "fix": "세션별 접두어(semh 등)",
+   "source": "B6"
+  },
+  {
+   "id": "H7",
+   "issue": "목적·정의가 대화 중 여러 번 바뀌어 이전 표본 무효화. 규칙 버전과 의도 문장을 표본에 같이 남겨야 추적 가능",
+   "fix": "평가자 맥락 필드(purpose·human_actions·distinct_from·role, v2.2)는 규칙에 남김. 표본에는 rule_hash만 있음 → 의도 문장 해시를 표본에 남기는 것은 미구현",
+   "source": "B7"
+  },
+  {
+   "id": "H8",
+   "issue": "오독 신호어가 이름 자체 단어를 그대로 가리키면 그 이름은 자기 이름 때문에 제외됨(name-semantic-linter 설명에 '린터' → 오독 변형에서 0/6 X)",
+   "fix": "신호어는 이름 조각이 아니라 '잘못 읽힌 분야'의 특징어로 쓴다. 자동 검사는 한영 대응이 없어 미구현",
+   "source": "semh reexp 평가자 재실험"
+  },
+  {
+   "id": "H9",
+   "issue": "평가자 재실험의 '규칙 민감'이 모든 변형에서 통과 0인 이름에도 떴다",
+   "fix": "민감 = '고를 수 있는가'가 변형마다 다름(v2.2 수정)",
+   "source": "semh reexp"
+  },
+  {
+   "id": "H10",
+   "issue": "관점 지시문(최종사용자·UI/UX)을 주면 답변 어휘가 쉬워져 개발자 어휘 신호어(SQL·git·좌표)에 안 걸림 → 오독이 사라진 것처럼 보임(table_join 6/6→0/12). 실제 쉬운 표현('공통 항목을 기준','기준 키','조인 유형')으로 보강하면 11/12. 같은 답변인데 신호어 묶음이 결론을 뒤집음",
+   "fix": "관점을 바꿀 때는 그 관점의 설명문을 직접 읽어 신호어를 보강한 뒤 판정. 관점별 어휘를 misread_as에 함께 둔다",
+   "source": "semh gui_view(2026-11-04)"
+  },
+  {
+   "id": "H11",
+   "issue": "보강 신호어('기준 키','기준 열')가 의도와 겹침: 이 화면은 원래 식별자로 행을 맞춰 대조한다. '대조하려고 키로 줄을 맞춘다'(의도)와 '키로 합쳐 결과 표를 만든다'(오독)는 단어로 안 갈림 → table_merge_rule 0/6→6/12에 오탐 섞임",
+   "fix": "단어보다 동작+결과 쌍으로 신호를 쓴다(오독: '통합 데이터셋을 생성','결과를 실행' / 의도: '차이를 확인','남길지 정'). LLM 판정 금지 아래의 한계로 기록",
+   "source": "semh gui_view"
+  },
+  {
+   "id": "H12",
+   "issue": "원래 지시문이 '처음 보는 개발자' 관점이라 사람이 보는 이름(GUI 유형)도 개발자 뜻으로 읽힘. grid: 개발자→좌표·공간 격자, 최종사용자→엑셀식 표 격자. merge_condition: git 오독이 사람 관점에서 5/6→1/12",
+   "fix": "규칙에 독자(audience: developer|end-user) 맥락을 두고, 사람이 보는 이름은 사람 관점 지시문을 기본 답변자 조건에 넣는다(collect_variants.py)",
+   "source": "semh gui_view, 사용자 제안"
+  }
+ ],
+ "process": [
+  {
+   "id": "P1",
+   "issue": "사용자가 직접 낸 후보를 선행 판단으로 미루고 바로 돌리지 않음",
+   "lesson": "사용자 후보는 먼저 돌린다",
+   "source": "C1"
+  },
+  {
+   "id": "P2",
+   "issue": "'진행할까요?'를 반복해 흐름을 끊음(답은 매번 '돌려')",
+   "lesson": "결정이 이미 내려진 일은 묻지 않고 진행한다",
+   "source": "C2·semh"
+  },
+  {
+   "id": "P3",
+   "issue": "사용자가 고른 것을 임시 취급하다가 관례를 근거로 재확정. 사용자 기준(XX+ZZ)보다 관례를 위에 둠",
+   "lesson": "사용자 기준이 관례보다 위",
+   "source": "C3"
+  },
+  {
+   "id": "P4",
+   "issue": "사용자의 화면 연상('벤 다이어그램')을 확인 없이 이름 단어로 끼워 넣음",
+   "lesson": "연상은 화면 설계 아이디어로 두고 이름에 넣기 전에 확인",
+   "source": "C4"
+  },
+  {
+   "id": "P5",
+   "issue": "ZZ 정의에 목적어(처리 대상)가 빠짐",
+   "lesson": "정의 문장은 대상·동작·목적어를 모두 갖춘다",
+   "source": "C5"
+  },
+  {
+   "id": "P6",
+   "issue": "재표본 부트스트랩을 '독립 실험 반복'처럼 설명하고 구현 — 6개 전수 집계에 새 정보 없음",
+   "lesson": "통계 기법을 붙이기 전에 표본 수와 새 정보 여부를 확인",
+   "source": "semh"
+  },
+  {
+   "id": "P7",
+   "issue": "수정 프로토콜(재사용 조사·실패 테스트 먼저)을 건너뛰고 코드부터 고침",
+   "lesson": "수정 프로토콜 순서 준수",
+   "source": "semh"
+  },
+  {
+   "id": "P8",
+   "issue": "산출 방법을 밝히지 않은 수치('98줄') 보고 → 재현 불가 지적",
+   "lesson": "수치는 계산 방법·입력과 함께 보고",
+   "source": "semh"
+  },
+  {
+   "id": "P9",
+   "issue": "외부 생성자 프롬프트에 '소프트웨어 저장소'라고 밝히고, 실패 단어 목록·'이렇게 읽히면 실패' 목록을 넣음",
+   "lesson": "생성 프롬프트에는 하는 일과 사람의 행동만 평이하게 쓴다. 분야 이름·금지 목록·실패 단어를 넣지 않는다 — 하지 말라고 해도 들어간 신호는 오히려 끌어당긴다. 실패 사례는 생성자에게 주지 말고 검증 단계(위험 단어 사전·오독 게이트)에서만 쓴다",
+   "source": "semh 사용자 지적(2026-11-04)"
+  }
+ ]
+}

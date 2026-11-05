@@ -1,0 +1,86 @@
+{
+ "model": "gpt-6-luna",
+ "status": "succeeded",
+ "candidates": [
+  {
+   "name": "meaning-preview",
+   "why": "이름이 어떤 뜻으로 받아들여질지 미리 살펴보는 일이 떠오릅니다."
+  },
+  {
+   "name": "sense-check",
+   "why": "이름 후보의 실제 해석을 확인해 의도와 맞는지 점검하는 일이 떠오릅니다."
+  },
+  {
+   "name": "name-interpretation",
+   "why": "사람들이 이름을 어떻게 해석하는지 알아보는 일이 떠오릅니다."
+  },
+  {
+   "name": "intent-test",
+   "why": "이름에 담은 의도가 다른 사람에게도 전해지는지 시험하는 일이 떠오릅니다."
+  },
+  {
+   "name": "perception-scan",
+   "why": "이름을 처음 본 사람들의 인식을 살펴보는 일이 떠오릅니다."
+  },
+  {
+   "name": "meaning-probe",
+   "why": "이름에 담긴 뜻을 사람들에게 물어 파악하는 일이 떠오릅니다."
+  },
+  {
+   "name": "first-impression",
+   "why": "이름을 처음 접했을 때 떠오르는 의미를 확인하는 일이 떠오릅니다."
+  },
+  {
+   "name": "sense-preview",
+   "why": "후보 이름이 어떤 의미로 읽힐지 미리 확인하는 일이 떠오릅니다."
+  },
+  {
+   "name": "reader-feedback",
+   "why": "이름을 본 사람들의 해석을 모아 선택에 활용하는 일이 떠오릅니다."
+  },
+  {
+   "name": "name-clarity",
+   "why": "이름의 뜻이 분명하게 전달되는지 가늠하는 일이 떠오릅니다."
+  },
+  {
+   "name": "concept-check",
+   "why": "이름이 나타내려는 개념을 사람들이 제대로 이해하는지 확인하는 일이 떠오릅니다."
+  },
+  {
+   "name": "intent-alignment",
+   "why": "사람들이 받아들인 뜻과 이름에 담은 의도를 맞춰 보는 일이 떠오릅니다."
+  },
+  {
+   "name": "meaning-mapping",
+   "why": "이름 후보마다 사람들이 연결하는 의미를 파악하는 일이 떠오릅니다."
+  },
+  {
+   "name": "audience-reading",
+   "why": "이름을 접한 사람들이 어떻게 받아들이는지 살펴보는 일이 떠오릅니다."
+  },
+  {
+   "name": "name-vetting",
+   "why": "이름 후보를 검토하고 뜻이 의도에 맞는 것을 고르는 일이 떠오릅니다."
+  },
+  {
+   "name": "sense-survey",
+   "why": "여러 사람에게 이름의 해석을 물어 후보를 비교하는 일이 떠오릅니다."
+  },
+  {
+   "name": "interpretation-trial",
+   "why": "이름을 실제로 제시해 어떤 뜻으로 읽히는지 시험하는 일이 떠오릅니다."
+  },
+  {
+   "name": "message-fit",
+   "why": "이름이 전하려는 메시지와 사람들의 이해가 맞는지 확인하는 일이 떠오릅니다."
+  },
+  {
+   "name": "meaning-choice",
+   "why": "받아들여진 의미를 바탕으로 가장 알맞은 이름을 고르는 일이 떠오릅니다."
+  },
+  {
+   "name": "name-validation",
+   "why": "이름의 뜻이 의도대로 전달되는지 검증하고 최종 후보를 정하는 일이 떠오릅니다."
+  }
+ ]
+}

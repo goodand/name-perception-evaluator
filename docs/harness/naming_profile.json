@@ -1,0 +1,65 @@
+{
+ "about": "이름 짓기 프로필 — 주제와 무관하게 늘 쓰는 기준. 주제별 내용(목적·사람 행동·이웃 개념·독자)은 briefs/<주제>.json에 따로 쓴다. 출처: 사용자 지시(2026-11-04), docs/harness/naming_failures.json.",
+ "style": {
+  "form": "[대상]-[역할]. 추상 조어보다 기능이 바로 연상되는 이름(특허명처럼)",
+  "case": "영어 소문자, 하이픈(코드 식별자는 밑줄)",
+  "target_word_required": "이름 안에 '무엇을 다루는지'(대상)가 있어야 한다. 대상이 빠지면 처음 보는 사람이 대상을 알 수 없다",
+  "no_domain_jargon": "특정 업무 용어 금지, 포괄어만"
+ },
+ "max_keywords": 3,
+ "collision": {
+  "role": "참고 정보. PyPI·npm·GitHub에 같은 이름이 있어도 후보에서 빼지 않는다",
+  "unverified_is_not_free": true,
+  "tool": "scripts/check_availability.py"
+ },
+ "generator": {
+  "isolation": "생성자에게는 하는 일과 사람 행동만 평이한 말로 준다. 분야 이름, 금지 목록, 이미 실패한 단어는 주지 않는다 — 하지 말라고 써도 들어간 신호는 끌어당긴다",
+  "separate_from_answerer": "생성자와 답변자는 서로 다른 격리 프로세스·대화창",
+  "batches": "여러 묶음을 독립 생성해 키워드 통계(scripts/name_keywords.py stats)를 낸다",
+  "models": "다양성: gpt·Haiku가 Sonnet보다 높았다(2026-11-04 실측). 쓸 수 있는 모델을 섞는다",
+  "prompt_template": "아래 일을 하는 것에 붙일 이름을 지어 주세요.\n\n하는 일: {purpose}.\n사람이 하는 일: {human_actions}\n\n이름은 영어 소문자 단어 1~{max_keywords}개를 하이픈으로 잇습니다.\n\n서로 다른 단어를 써서 후보 {n}개를 내 주세요. 한 줄에 하나씩, 이름 다음에 ' — '를 쓰고 그 이름에서 하는 일이 어떻게 떠오르는지 한 줄로 적어 주세요. 다른 말은 쓰지 마세요.",
+  "gpt_tail": "\nReturn only a JSON object {\"candidates\":[{\"name\":\"...\",\"why\":\"...\"}]}."
+ },
+ "answerers": {
+  "default": [
+   "claude:sonnet",
+   "claude:haiku"
+  ],
+  "optional": [
+   "gpt:gpt-6-luna",
+   "qwen:<LM Studio 모델 id, 예 qwen/qwen3.8-27b>"
+  ],
+  "isolation": "이름만 준다(collect_samples.py는 id·term만 보낸다). 맥락·목적·평가 규칙은 절대 주지 않는다. Agent 도구의 서브에이전트는 CLAUDE.md·메모리가 보여 답변자로 쓰지 않는다",
+  "solo": "이름 하나당 호출 한 번(목록 힌트 오염 방지)",
+  "rounds": 3,
+  "separate_output_dirs_per_model": "같은 폴더에 두 모델을 두면 이어받기가 한쪽을 건너뛴다",
+  "optional_note": "gpt는 workflow-runner OMP 실행기(adapters._OMP_EXE 경로), qwen은 LM Studio 서버(127.0.0.1:1234). `namecheck doctor`로 사용 가능 여부를 보고, `namecheck run --answerers claude:haiku,gpt:gpt-6-luna,qwen:<id>`로 시도한다. 없으면 Claude만으로 돈다"
+ },
+ "perspectives": {
+  "developer": "기본 지시문(collect_samples.INSTR). 따로 돌리지 않는다",
+  "human": "독자가 사람(최종 사용자·UI/UX)인 이름은 사람 관점 지시문을 기본 조건에 넣는다(collect_variants.py --variants). 독자는 브리프의 audience로 정한다",
+  "note": "관점을 바꾸면 답변 어휘가 쉬워져 개발자 어휘 신호어에 안 걸린다 — 그 관점의 설명문을 직접 읽어 신호어를 보강한 뒤 판정",
+  "prompts": {
+   "ux": "당신은 화면을 설계하는 디자이너입니다. 팀이 쓰는 목록에서 이 이름을 봅니다. 이 이름이 무엇을 떠올리게 하는지, 사람이 이것으로 무엇을 하게 될지 생각해 주세요.",
+   "end_user": "팀 목록에서 이 이름을 처음 본 팀원의 입장에서, 이것이 자기에게 무엇을 해 줄지 생각해 주세요."
+  },
+  "no_software_words": "답변자·생성자·평가자 지시문은 scripts/prompt_check.py(사전 docs/harness/dev_words.json)로 검사해 경고를 본다. 막지 않고 경고만. 입출력도 평문(plain_runner). gpt는 동봉 실행기 제약으로 형식 요구가 붙어 경고된다"
+ },
+ "gate": {
+  "rule": "표본 하나라도 오독(misread_as 신호)이면 그 이름은 제외. 순위 가중이 아니다",
+  "evaluator_has_more_context": "평가자(규칙과 그 작성자)는 목적·차별점·역할을 모두 안다. 답변자는 모른다",
+  "signals": "단어 하나보다 동작+결과 쌍으로 쓴다. 이름 자체 단어를 신호어로 쓰지 않는다. 신호어가 의도와 겹치지 않는지 확인",
+  "no_llm_judge": true,
+  "human_reads": "규칙 판정 뒤 설명문을 직접 읽어 교차 확인한다"
+ },
+ "fallback": "게이트 통과 후보가 없으면 오독률(오독 표본 수/표본 수, 비율) 최저인 이름들 중에서 통과율 → 기존안 유지 순으로 고른다(예비 선택)",
+ "selection": "workflow-runner runner.choose와 같다: 필수 게이트 → 통과율 → 동점은 기존안 유지",
+ "rule_change": "규칙을 고치면 새 표본으로만 재판정(rule_hash로 옛 표본 stale 제외). 판정식 자체를 바꾸면 JUDGE_VERSION을 올린다",
+ "process": {
+  "user_candidates_first": "사용자가 낸 후보는 내 사전 판단보다 먼저 돌린다",
+  "user_criteria_over_convention": "사용자 기준이 관례보다 위",
+  "dont_ask_when_decided": "이미 정해진 일은 '진행할까요?'라고 묻지 않는다",
+  "report_numbers_with_method": "수치는 계산 방법·입력과 함께 보고한다"
+ },
+ "warn_below_pass_rate": 0.5
+}

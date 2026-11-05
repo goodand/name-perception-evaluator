@@ -1,0 +1,7 @@
+{
+ "note": "workflow-runner 수정 프로토콜 스킬 원문(수정 없음). 이 하네스에 적용하는 방법은 docs/harness/NAMING_GUIDE.md '하네스를 고칠 때'.",
+ "source": "D:/web_chat_gpt/workflow-runner/skills/modification-protocol/SKILL.md",
+ "source_commit": "41215af410653c98d84aa051fe26cbe4dd56764f",
+ "sha256": "b12433d5d66644239441a1d29010a37794700f6d00b35fe466c2ad937c7995d7",
+ "copied": "2026-11-04"
+}

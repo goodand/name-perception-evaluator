@@ -1,0 +1,27 @@
+{
+ "r1_claude.json": [
+  4,
+  73,
+  "names.yaml"
+ ],
+ "r1_local_qwen.json": [
+  3,
+  52,
+  "names.yaml"
+ ],
+ "r1_omp_gpt6luna.json": [
+  1,
+  16,
+  "names.yaml"
+ ],
+ "r2_local_qwen.json": [
+  3,
+  30,
+  "names_r2.yaml"
+ ],
+ "r2_omp_gpt6luna.json": [
+  2,
+  24,
+  "names_r2.yaml"
+ ]
+}

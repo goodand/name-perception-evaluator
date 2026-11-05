@@ -1,0 +1,16 @@
+{
+ "about": "지시문 검사 사전(scripts/prompt_check.py). 걸리면 금지가 아니라 경고: 경고를 보고 LLM·사람이 고친다. 사용자 2026-11-05.",
+ "general": {
+  "source": "초기 목록(직접 작성). 웹 범용 소프트웨어 용어집은 아직 반영 안 함 — 받을 자료를 사용자가 정하면 출처와 함께 추가",
+  "words": ["software", "repository", "repo", "code", "coding", "developer", "programming", "program", "function", "variable",
+            "identifier", "api", "library", "framework", "module", "package", "script", "debug", "compile", "deploy",
+            "linter", "lint", "parser", "schema", "database", "server", "string", "array", "object", "class",
+            "소프트웨어", "저장소", "코드", "개발자", "개발", "프로그램", "함수", "변수", "식별자", "라이브러리",
+            "프레임워크", "모듈", "패키지", "스크립트", "디버그", "배포", "린터", "파서", "스키마", "데이터베이스", "서버", "문자열"]
+ },
+ "leaky": {
+  "source": "실제로 지시문에 섞여 들어가 지적받은 단어(사용자 지적·실측)",
+  "words": ["json", "tool", "tools", "test", "check", "harness", "catalog", "workflow", "worker", "input data",
+            "도구", "형식", "데이터", "입력"]
+ }
+}

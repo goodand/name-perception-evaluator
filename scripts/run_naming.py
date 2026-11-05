@@ -1,0 +1,145 @@
+"""명명 검증을 한 번에 돌린다 — Claude 모델만으로 동작 (하네스 v2.2).
+
+사용: python scripts/run_naming.py <brief.json> <후보: 쉼표 목록 또는 한 줄에 하나인 .txt> <out_dir>
+      [--rounds N] [--human] [--no-network] [--profile docs/harness/naming_profile.json]
+흐름: 프로필(주제 무관 기준) + 브리프(주제별 평가자 맥락) + 후보
+  → 규칙 생성(out/rules.json) → 사전 검사(맥락·위험 단어·길이) → 충돌 조회(참고)
+  → 답변 수집(모델별 폴더, 독자가 사람이거나 --human이면 사람 관점 추가)
+  → 오독 게이트 판정 → 선택(게이트 → 통과율 → 기존안 유지, 전부 제외면 오독률 최저 예비 선택) → out/report.md
+답변자에게는 이름만 간다(collect_samples). 브리프·프로필 내용은 평가자 쪽에만 쓴다.
+안내: docs/harness/NAMING_GUIDE.md
+"""
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+import check_terms as ct  # noqa: E402
+import collect_samples as cs  # noqa: E402
+import collect_variants as cv  # noqa: E402
+
+ROOT = Path(__file__).parents[1]
+PROFILE_DEFAULT = ROOT / "docs/harness/naming_profile.json"
+CONTEXT_KEYS = ("purpose", "human_actions", "distinct_from", "role", "audience", "misread_as", "must")
+
+
+def build_rules(brief: dict, names: list[str]) -> dict:
+    rules = {}
+    for i, n in enumerate(names, 1):
+        r = {"id": f"C{i:02d}", "term": n, **{k: brief[k] for k in CONTEXT_KEYS if k in brief},
+             "must_not": list(brief.get("must_not", []))}
+        if i == 1 and brief.get("contrasts"):  # 대조 이름은 규칙 하나에만 달아 한 번만 수집
+            r["contrasts"] = list(brief["contrasts"])
+        rules[r["id"]] = r
+    return rules
+
+
+def perspectives(brief: dict, profile: dict, force_human: bool = False) -> list[str]:
+    human = force_human or brief.get("audience", "developer") != "developer"
+    return ["developer"] + (list(profile["perspectives"]["prompts"]) if human else [])
+
+
+def parse_answerers(spec) -> list[tuple[str, str]]:
+    """'claude:haiku,gpt:gpt-6-luna,qwen:<LM Studio 모델 id>' 또는 그 목록 → [(백엔드, 모델)]."""
+    items = spec.split(",") if isinstance(spec, str) else spec
+    return [tuple(a.strip().split(":", 1)) for a in items if a.strip()]
+
+
+def _answerers(profile: dict) -> list[tuple[str, str]]:
+    return parse_answerers(profile["answerers"]["default"])
+
+
+def run(profile: dict, brief: dict, names: list[str], out_dir: Path, rounds: int | None = None,
+        backend_factory=None, check_network: bool = True, force_human: bool = False, timeout: float = 300, answerers=None,
+        reviewer=None, reviewer_factory=None) -> dict:
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    backend_factory = backend_factory or cs.make_backend
+    rounds = rounds or profile["answerers"]["rounds"]
+    rules = build_rules(brief, names)
+    rules_path = out_dir / "rules.json"
+    rules_path.write_text(json.dumps({"terms": list(rules.values())}, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    lint = ct.lint_context(rules)
+    import prompt_check  # 지시문 검사: 개발·SW 단어 경고(막지 않음)
+    lint += prompt_check.check_prompts({"답변자": cs.INSTR, **{f"관점:{v}": profile["perspectives"]["prompts"][v]
+                                                               for v in profile["perspectives"]["prompts"]}})
+    if ct.RISKY_DEFAULT.exists():
+        lint += ct.lint_names(rules, json.loads(ct.RISKY_DEFAULT.read_text(encoding="utf-8")))
+
+    avail = {}
+    if check_network:
+        import check_availability as ca
+
+        avail = {n: ca.check(n)["overall"] for n in names}
+
+    views = perspectives(brief, profile, force_human)
+    prompts = profile["perspectives"]["prompts"]
+    for kind, model in answerers or _answerers(profile):
+        d = out_dir / model.replace("/", "_")  # 모델별 폴더: 같은 폴더면 이어받기가 다른 모델 표본을 건너뛴다
+        d.mkdir(exist_ok=True)
+        call = backend_factory(kind, model, d / "art")
+        for v in views:
+            if v == "developer":
+                cs.collect(call, rules, str(rules_path), rounds, d / "developer.jsonl", model, kind, timeout)
+            else:
+                cv.collect_variant(call, v, prompts[v], rules, str(rules_path), rounds, d, model, kind, timeout)
+
+    files = sorted(out_dir.glob("*/*.jsonl"))
+    res = ct.score(rules, files)
+    sel = ct.choose(res, str(sorted(ct.rule_hash(r) for r in rules.values())))
+    warnings = []
+    chosen = next((s for s in res.values() if s["term"] == sel["selected"]), None)
+    floor = profile.get("warn_below_pass_rate", 0.5)
+    if chosen and chosen["n"] and chosen["pass"] / chosen["n"] < floor:  # 다른 후보가 모두 제외되면 통과 0도 뽑힌다
+        warnings.append(f'선택된 {chosen["term"]}의 통과율 {chosen["pass"]}/{chosen["n"]}이 {floor:.0%} 미만: '
+                        "표본을 늘리거나 후보를 바꿀 것")
+    rev = {}
+    if reviewer:  # 격리 평가자: 사람 관점에서 설명문을 다시 본다(경고만). 사람 관점이 있으면 둘 다
+        import review_explanations as re_
+        kind, model = reviewer
+        call = (reviewer_factory or re_.make_reviewer)(kind, model, out_dir / "art_review")
+        for v in [v for v in views if v in re_.VIEWS] or ["end_user"]:
+            rev.update({f"{rid}:{v}": s for rid, s in re_.review(rules, files, call, v, timeout).items()})
+        (out_dir / "review.json").write_text(json.dumps(rev, ensure_ascii=False, indent=1), encoding="utf-8")
+    _report(out_dir / "report.md", rules, res, sel, lint, avail, views, warnings, rev)
+    return {"review": rev, "selected": sel["selected"], "fallback": sel.get("fallback", False), "reason": sel["reason"],
+            "warnings": warnings, "scores": res, "lint": lint, "availability": avail, "files": [str(f) for f in files]}
+
+
+def _report(path: Path, rules: dict, res: dict, sel: dict, lint: list, avail: dict, views: list,
+            warnings: list = (), rev: dict | None = None) -> None:
+    lines = ["# 명명 검증 결과", "", f"관점: {', '.join(views)}", "",
+             "| 이름 | 통과 | 오독률 | 제외 | 충돌(참고) | 오독 근거 |", "|---|---|---|---|---|---|"]
+    for rid, s in res.items():
+        rate = f'{s["misread_n"]}/{s["n"]}' if s["n"] else "-"
+        ev = (s["misread_examples"][0][:80].replace("|", "/") if s["misread_examples"] else "")
+        lines.append(f'| {s["term"]} | {s["pass"]}/{s["n"]} | {rate} | {"제외" if s["excluded"] else ""} '
+                     f'| {avail.get(s["term"], "-")} | {ev} |')
+    lines += ["", f'**{"예비 선택" if sel.get("fallback") else "선택"}: {sel["selected"] or "없음"}** ({sel["reason"]})',
+              *[f"> 경고: {w}" for w in warnings],
+              "", "판정 뒤 설명문을 직접 읽어 교차 확인할 것(규칙은 쉬운 말 표현을 놓칠 수 있다).", "", "## 사전 검사"]
+    lines += [f"- {w}" for w in lint] or ["- 없음"]
+    if rev:
+        import review_explanations as re_
+        lines += re_.report_lines(rev)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def main() -> None:
+    sys.stdout.reconfigure(encoding="utf-8")
+    a = sys.argv[1:]
+    brief = json.loads(Path(a[0]).read_text(encoding="utf-8"))
+    src = Path(a[1])
+    names = [x.strip() for x in (src.read_text(encoding="utf-8").splitlines() if src.is_file() else a[1].split(","))
+             if x.strip()]
+    profile = json.loads(Path(a[a.index("--profile") + 1] if "--profile" in a else PROFILE_DEFAULT)
+                         .read_text(encoding="utf-8"))
+    out = run(profile, brief, names, Path(a[2]), int(a[a.index("--rounds") + 1]) if "--rounds" in a else None,
+              check_network="--no-network" not in a, force_human="--human" in a)
+    print(Path(a[2]) / "report.md")
+    print(f'{"예비 선택" if out["fallback"] else "선택"}: {out["selected"]}')
+
+
+if __name__ == "__main__":
+    main()

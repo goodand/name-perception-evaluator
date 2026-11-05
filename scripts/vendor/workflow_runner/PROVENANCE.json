@@ -1,0 +1,16 @@
+{
+ "note": "workflow-runner 원본을 수정 없이 복사. claude_adapter = claude -p 맥락 격리 답변자(Claude 계정 로그인만 필요). adapters.run_agent(gpt-6-luna)는 원본 PC의 OMP 경로를 쓰므로 다른 PC에서는 실패를 돌려주고 끝난다(선택 사항).",
+ "source_repo": "D:/web_chat_gpt/workflow-runner",
+ "source_commit": "41215af410653c98d84aa051fe26cbe4dd56764f",
+ "copied": "2026-11-04",
+ "files": {
+  "adapters.py": {
+   "sha256": "2f2bea8ce7effb0d4d75c6431c417c4d487f3e49d0580e7d0a0f0a554ab1239a",
+   "source": "D:/web_chat_gpt/workflow-runner/adapters.py"
+  },
+  "claude_adapter.py": {
+   "sha256": "e05ae4b65e008e5c00ef2880ef9c4071dad3ecdb5f114a2c2bd642077a2ff922",
+   "source": "D:/web_chat_gpt/workflow-runner/claude_adapter.py"
+  }
+ }
+}
