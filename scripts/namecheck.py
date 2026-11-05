@@ -6,6 +6,7 @@ run의 report.md를 본다. 반복되고 선택지가 적은 단계는 여기(�
 """
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -185,7 +186,7 @@ def cmd_overlap(a):
     return 2 if pairs else 0
 
 
-LMS_URL = "http://127.0.0.1:1234/v1/models"
+LMS_URL = __import__("plain_runner").LMS_BASE + "/v1/models"  # LMSTUDIO_URL 환경 변수로 바꿀 수 있음
 
 
 def _lms_models():
@@ -204,7 +205,10 @@ def _lms(*args):
     import shutil
     import subprocess
 
-    exe = shutil.which("lms") or str(Path.home() / ".lmstudio/bin/lms.exe")
+    exe = shutil.which("lms") or next((str(p) for p in (Path.home() / ".lmstudio/bin/lms.exe", Path.home() / ".lmstudio/bin/lms")
+                                       if p.is_file()), None)
+    if exe is None:
+        return None
     if not Path(exe).is_file():
         return None
     return subprocess.run([exe, *args], capture_output=True, text=True, timeout=600).returncode
@@ -234,12 +238,12 @@ def doctor() -> dict:
     rep = {}
     c = shutil.which("claude")
     rep["claude"] = {"ok": bool(c), "detail": c or "claude CLI 없음"}
-    sys.path.insert(0, str(cs.RUNNER))
     try:
-        import adapters
+        adapters = cs.load_adapters()
 
         exe = Path(adapters._OMP_EXE)
-        rep["gpt"] = {"ok": exe.is_file(), "detail": f"{exe} ({'있음' if exe.is_file() else '없음'}), "
+        env_note = " [NAME_HARNESS_OMP_ROOT]" if os.environ.get("NAME_HARNESS_OMP_ROOT") else " (다른 PC면 NAME_HARNESS_OMP_ROOT로 지정)"
+        rep["gpt"] = {"ok": exe.is_file(), "detail": f"{exe}{env_note} ({'있음' if exe.is_file() else '없음'}), "
                                                       "실패가 잦으면 다시 run(이어받기)"}
     except Exception as exc:  # noqa: BLE001
         rep["gpt"] = {"ok": False, "detail": f"adapters 읽기 실패: {exc}"}

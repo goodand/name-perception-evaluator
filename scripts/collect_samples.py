@@ -18,6 +18,19 @@ from check_terms import load_rules, rule_hash  # noqa: E402
 
 # 답변자 실행기: 환경 변수가 있으면 그 경로, 없으면 저장소 안 동봉본(scripts/vendor/workflow_runner, 원본 수정 없음)
 RUNNER = Path(os.environ.get("NAME_HARNESS_RUNNER") or Path(__file__).parent / "vendor" / "workflow_runner")
+
+
+def load_adapters():
+    """동봉 실행기 adapters 모듈. gpt(OMP) 경로가 PC 고정이라 NAME_HARNESS_OMP_ROOT가 있으면 import 뒤 덮어쓴다(동봉본 무수정)."""
+    sys.path.insert(0, str(RUNNER))
+    import adapters
+
+    root = os.environ.get("NAME_HARNESS_OMP_ROOT")
+    if root:
+        adapters._OMP_ROOT = Path(root)
+        adapters._OMP_EXE = adapters._OMP_ROOT / ("omp.exe" if os.name == "nt" else "omp")
+        adapters._CONTROLLED_CONFIG = adapters._OMP_ROOT / "controlled.yml"
+    return adapters
 # 평문 지시문: 개발·SW 단어와 형식 요구를 넣지 않는다(들어간 단어가 답변을 끌어당긴다). 검사: scripts/prompt_check.py
 FRAMING = "이름 하나가 주어집니다. 다른 설명은 없습니다."
 CONTRACT = "이 이름을 처음 본 사람이 가장 자연스럽게 떠올릴 뜻을 한국어 1~2문장으로 적어 주세요. 모르면 짐작해서 적고, 뜻만 적어 주세요."
@@ -54,9 +67,8 @@ def make_backend(kind: str, model: str, art_dir: Path):
         import plain_runner
 
         return plain_runner.make_backend(kind, model, art_dir, lambda: INSTR_NOW())
-    sys.path.insert(0, str(RUNNER))
     if kind == "gpt":
-        from adapters import run_agent  # gpt-6-luna(OMP) 격리 실행기, 모델은 실행기 설정
+        run_agent = load_adapters().run_agent  # gpt-6-luna(OMP) 격리 실행기, 모델은 실행기 설정
 
         return lambda names, timeout: run_agent({"names": names}, INSTR_NOW() + GPT_TAIL, timeout, None, cancel, art_dir)
     raise SystemExit(f"알 수 없는 백엔드: {kind}")

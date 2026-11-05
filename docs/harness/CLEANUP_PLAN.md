@@ -227,7 +227,9 @@ git commit -m "이름 검증 하네스 첫 커밋: ldx_workbench에서 분리(�
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 
-## 6. 원래 세션에 넘길 고칠 것 (이 세션은 고치지 않음)
+## 6. 원래 세션에 넘길 고칠 것 — **전부 반영됨(2026-11-05, 새 저장소 두 번째 커밋)**
+
+반영: `collect_samples.load_adapters()`(NAME_HARNESS_OMP_ROOT), `plain_runner.LMS_BASE`(LMSTUDIO_URL, 3곳 통일), `_lms` 비Windows 경로, ldx 전용 기본 경로 2곳 제거(인자 필수), `.gitattributes`, `out/` 무시, setup.sh 조건. 시험: `tests/test_reusable_env.py`.
 
 1. `setup.sh`: `uv sync`가 `pyproject.toml` 없으면 실패 → 조건 추가. 끝 안내를 `namecheck` 명령으로.
 2. gpt OMP 경로를 환경 변수(`NAME_HARNESS_OMP_ROOT`)로 덮어쓰는 감싸기 + `doctor` 표시.

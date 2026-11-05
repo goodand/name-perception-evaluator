@@ -345,8 +345,10 @@ def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     args = sys.argv[1:]
     if "--samples" not in args:
+        if len(args) < 2:
+            raise SystemExit("사용: check_terms.py <답변.json> <규칙 파일(rules.json|names.yaml)> — 규칙 파일을 주세요")
         rnd = json.loads(Path(args[0]).read_text(encoding="utf-8"))
-        rules = load_rules(Path(args[1]) if len(args) > 1 else Path(__file__).parents[1] / "docs/glossary/terms.yaml")
+        rules = load_rules(Path(args[1]))
         fails = 0
         for r in rnd:
             ok, why = judge(r["explanation"], rules[r["id"]])

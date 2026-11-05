@@ -51,6 +51,18 @@
 - name-perception-evaluator(사용자 질문, 같은 조건 27표본) 26/27·오독 0, 평가자 23/27(ux)·22/27(end_user). 다른 뜻: 브랜드 호감도 점수화, '이름 지은 사람의 인식'을 평가
 - 결과 폴더: scratchpad/repo_plain1, repo_plain2 (저장소 밖), 보고서는 docs/harness/history/
 
+## 저장소 생성(2026-11-05)
+- https://github.com/goodand/name-perception-evaluator 첫 커밋 73a8a14 push. 파일 75개, 테스트 190 통과·1 건너뜀(원본 커밋 참조 테스트)
+- 작업 폴더 `D:\dev_eval_team\jh_dev
+ame-perception-evaluator`. 커밋 작성자는 GitHub noreply 주소(회사 이메일 비노출)
+- ldx_workbench 쪽 하네스 파일은 아직 미커밋(복사본). `docs/harness/tla/`(TLA 추적 bin)는 새 저장소에 넣지 않음
+
+## 재사용성 항목 반영(2026-11-05, 사용자 "재사용성 남은 항목들 고치고 push해")
+- gpt 실행기 경로: `NAME_HARNESS_OMP_ROOT` 환경 변수(동봉본 무수정, import 뒤 덮어쓰기). `doctor`가 표시
+- LM Studio 주소: `LMSTUDIO_URL` 한 곳. lms CLI 경로 비Windows 대응
+- ldx 전용 기본 경로(check_terms, ask_local_llm) 제거 → 인자 필수
+- 테스트 193 통과·1 건너뜀
+
 ## 검토자 지적(2026-11-05, Opus 검토: 사용자 메시지 128개 전수)
 - 개발 용어 편향을 내가 반복해 넣음(생성 프롬프트→답변자 지시문→JSON 형식→내가 조합한 후보). 같은 지적 4회 이상
 - 주 목표(저장소 이름 확정→repo 생성)가 하루 넘게 밀림

@@ -146,8 +146,7 @@ def generate(models: list[str], out_dir: Path, timeout: float = 300, tries: int 
     gpt 실행기가 자주 'prompt did not complete'로 끝나므로 묶음마다 tries번까지 다시 시도한다."""
     import collect_samples as cs  # noqa: F401 — RUNNER 경로 설정을 재사용
     import plain_runner
-    sys.path.insert(0, str(cs.RUNNER))
-    from adapters import run_agent as run_gpt
+    run_gpt = cs.load_adapters().run_agent
     gpt_tail = _load(ROOT / "docs/harness/naming_profile.json")["generator"].get("gpt_tail", "")
 
     out_dir.mkdir(parents=True, exist_ok=True)

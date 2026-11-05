@@ -5,6 +5,7 @@
 vendor/workflow_runner/claude_adapter.py와 같고 시스템 프롬프트만 다르다. 동봉 실행기는 고치지 않는다.
 """
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -14,7 +15,8 @@ import urllib.request
 from pathlib import Path
 
 SYSTEM_PROMPT = "주어진 요청에만 답하세요."
-LMS_CHAT = "http://127.0.0.1:1234/v1/chat/completions"
+LMS_BASE = os.environ.get("LMSTUDIO_URL", "http://127.0.0.1:1234").rstrip("/")  # LM Studio 주소는 여기 한 곳
+LMS_CHAT = f"{LMS_BASE}/v1/chat/completions"
 
 
 def _clean(text: str) -> str:
@@ -23,10 +25,9 @@ def _clean(text: str) -> str:
 
 
 def claude_text(prompt: str, model: str, timeout: float, art_dir: Path | None = None) -> str:
-    from collect_samples import RUNNER
+    from collect_samples import load_adapters
 
-    sys.path.insert(0, str(RUNNER))
-    from adapters import _safe_child_env
+    _safe_child_env = load_adapters()._safe_child_env
 
     args = [shutil.which("claude") or "claude", "-p", "--setting-sources", "", "--tools", "",
             "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}',

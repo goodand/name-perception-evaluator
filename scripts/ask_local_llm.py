@@ -1,7 +1,7 @@
 """로컬 LLM(LM Studio, OpenAI 호환 API)에 용어 설명을 받아 규칙 판정한다.
 
 사용: python scripts/ask_local_llm.py <model_id> <samples> <out.json> [terms.json|names.yaml]
-용어는 docs/glossary/final_terms.json, 판정은 scripts/check_terms.py의 judge()와 같은 규칙.
+용어 파일은 인자로 준다. 판정은 scripts/check_terms.py의 judge()와 같은 규칙.
 """
 import json
 import re
@@ -29,7 +29,7 @@ def ask(model: str, terms: list[dict], timeout: float = 900, prompt: str = PROMP
         "temperature": 0.7,
     }
     req = urllib.request.Request(
-        "http://127.0.0.1:1234/v1/chat/completions",
+        __import__("plain_runner").LMS_CHAT,
         data=json.dumps(body).encode("utf-8"),
         headers={"Content-Type": "application/json"},
     )
@@ -40,7 +40,9 @@ def ask(model: str, terms: list[dict], timeout: float = 900, prompt: str = PROMP
 
 def main() -> None:
     model, n, out = sys.argv[1], int(sys.argv[2]), Path(sys.argv[3])
-    src = Path(sys.argv[4]) if len(sys.argv) > 4 else ROOT / "docs/glossary/final_terms.json"
+    if len(sys.argv) < 5:
+        raise SystemExit("용어 파일(terms.json 또는 names.yaml)을 넷째 인자로 주세요")
+    src = Path(sys.argv[4])
     raw = src.read_text(encoding="utf-8")
     terms = __import__("yaml").safe_load(raw)["terms"] if src.suffix == ".yaml" else json.loads(raw)
     rules = {t["id"]: t for t in terms}

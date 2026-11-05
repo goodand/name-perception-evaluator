@@ -10,7 +10,7 @@
 - 설계 기록: `docs/harness/name_harness_v2.md`
 - 저장소 정의(조건·전략): `docs/harness/REPO_DEFINITION.md`
 - 결정·질문 기록: `docs/harness/DECISION_LOG.md` (사용자가 정한 것과 물은 것을 함께 남긴다)
-- 선택 답변자: gpt-6-luna(OMP 실행기가 있는 PC), LM Studio 로컬 LLM(서버가 켜진 PC). `namecheck doctor`가 셋(claude·gpt·qwen)의 가능 여부를 보여 준다. 없으면 Claude만으로 돈다
+- 선택 답변자: gpt-6-luna(OMP 실행기가 있는 PC — 경로는 `NAME_HARNESS_OMP_ROOT` 환경 변수로 지정), LM Studio 로컬 LLM(서버가 켜진 PC — 주소는 `LMSTUDIO_URL`, 기본 127.0.0.1:1234). `namecheck doctor`가 셋(claude·gpt·qwen)의 가능 여부를 보여 준다. 없으면 Claude만으로 돈다
 
 ## 네 주체
 
