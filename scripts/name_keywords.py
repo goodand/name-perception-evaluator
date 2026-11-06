@@ -125,12 +125,14 @@ def diversity(by_source: dict) -> dict:
     return out
 
 
-def combine(batches: list[list[str]], max_keywords: int = 3, top: int = 30, min_batches: int = 2) -> list[dict]:
+def combine(batches: list[list[str]], max_keywords: int = 3, top: int = 30, min_batches: int = 2,
+            extra=()) -> list[dict]:
     """생성 묶음에서 키워드를 뽑아 새 후보를 규칙으로 조합한다(사람·평가자 판단 없음, 사용자 2026-11-04 지시).
     - 키워드는 min_batches개 이상 묶음에 나온 것만(우연한 단어 제외)
     - 자리: 생성 이름에서 그 키워드가 맨 앞에 온 횟수가 많으면 앞(대상), 맨 뒤가 많으면 뒤(역할). [대상]-[역할] 순서를 따른다
     - 한 이름 안에서 키워드 중복 없음, 이미 생성된 이름은 뺌, 키워드 수는 2~max_keywords
-    - 점수 = 키워드 등장 묶음 수의 합. 동점은 이름순"""
+    - 점수 = 키워드 등장 묶음 수의 합. 동점은 이름순
+    - extra: 검색자가 찾고 외부 점검에서 남은 낱말. 묶음 수 조건 없이 앞·뒤 자리 모두에 넣는다(점수 0)"""
     st = keyword_stats(batches)
     seen = {n for b in batches for n in b}
     first, last = Counter(), Counter()
@@ -143,6 +145,10 @@ def combine(batches: list[list[str]], max_keywords: int = 3, top: int = 30, min_
     heads = [k for k in keep if first[k] > last[k]]
     tails = [k for k in keep if last[k] > first[k]]
     mids = [k for k in keep if k not in heads and k not in tails]
+    extra = [e for e in dict.fromkeys(x.lower() for x in extra) if e not in keep]
+    for e in extra:
+        st.setdefault(e, {"batches": 0})
+    heads, tails = heads + extra, tails + extra
     out = {}
     for h in heads:
         for t in tails:
@@ -196,7 +202,8 @@ def generate(models: list[str], out_dir: Path, timeout: float = 300, tries: int 
             else:  # 평문 생성(plain_runner)
                 try:
                     r = {"status": "succeeded"}
-                    cands = parse_candidates(plain_runner.claude_text(prompt, m, timeout, art))
+                    with plain_runner.usage(Path(out_dir) / "usage.jsonl", "작명자"):
+                        cands = parse_candidates(plain_runner.claude_text(prompt, m, timeout, art))
                 except Exception as exc:  # noqa: BLE001
                     r, cands = {"status": f"failed: {type(exc).__name__}"}, []
             if cands:

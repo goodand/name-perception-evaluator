@@ -35,12 +35,12 @@ def holes(template: str) -> list[str]:
     return list(dict.fromkeys(m.group(1) for m in HOLE.finditer(template)))
 
 
-DIGITS = "영일이삼사오육칠팔구"
-TAIL = re.compile(r"([가-힣]+|[0-9]+|[A-Za-z]+)[^가-힣0-9A-Za-z]*$")
+TAIL = re.compile(r"(\S)[\s.,!?;:'\"’”)\]」』]*$")  # 끝의 공백·문장부호만 건너뛰고 마지막 글자를 본다
 
 
 class NoJosa(ValueError):
-    """조사를 정할 수 없는 값(영어 끝). 조사 없는 자리에 두거나 한글로 다시 채운다."""
+    """조사를 정할 수 없는 값(영어·숫자 끝). 조사 없는 자리에 두거나 한글로 다시 채운다.
+    숫자는 용어에 거의 쓰이지 않아 읽기 규칙을 두지 않는다(사용자 2026-11-06)."""
 
 
 def _kiwi():
@@ -51,22 +51,12 @@ def _kiwi():
     return _KIWI
 
 
-def _num_sound(n: str) -> str:
-    """숫자 끝소리 한 글자: 끝의 0은 자리 이름(십·백·천·만), 아니면 마지막 숫자 읽기."""
-    z = len(n) - len(n.rstrip("0"))
-    if z and n.strip("0"):
-        return "십백천만"[min(z, 4) - 1]
-    return DIGITS[int(n[-1])]
-
-
 def _josa(word: str, josa: str) -> str:
-    """끝 글자로 갈래를 나눈다: 한글 → Kiwi, 숫자 → 읽는 소리로 바꿔 Kiwi, 영어 → NoJosa(Kiwi는 한국어용)."""
+    """끝 글자로 갈래를 나눈다: 한글 → Kiwi, 영어·숫자 → NoJosa(Kiwi는 한국어용)."""
     m = TAIL.search(word)
-    if not m or re.match(r"[A-Za-z]", m.group(1)):
+    if not m or not re.fullmatch(r"[가-힣]", m.group(1)):
         raise NoJosa(f"조사를 붙일 수 없는 값: {word}")
     tag = {"이": "JKS", "을": "JKO", "은": "JX", "의": "JKG", "와": "JKB", "로": "JKB", "으로": "JKB"}.get(josa, "JX")
-    if m.group(1).isdigit():
-        return word + _kiwi().join([(_num_sound(m.group(1)), "NR"), (josa, tag)])[1:]
     last = _kiwi().tokenize(word)[-1]  # 마지막 형태소에 조사를 붙여 받침을 맞춘다
     return word[:last.start] + _kiwi().join([(last.form, last.tag), (josa, tag)])
 
@@ -134,7 +124,8 @@ def claude_filler(model: str = "haiku", timeout: float = 120):
 
     def fill(req):
         lines = "\n".join(f'{h["slot"]}: {h["value"]} (쓰면 안 되는 낱말: {", ".join(h["words"])})' for h in req["hits"])
-        out = plain_runner.claude_text(FILL_INSTR.format(lines=lines), model, timeout)
+        with plain_runner.usage(actor="빈칸 채우기"):
+            out = plain_runner.claude_text(FILL_INSTR.format(lines=lines), model, timeout)
         want = {h["slot"] for h in req["hits"]}
         got = {}
         for ln in out.splitlines():

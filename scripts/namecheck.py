@@ -129,10 +129,9 @@ def cmd_lint(a):
 def cmd_generate(a):
     prof = _load(PROFILE)
     prompt = nk.gen_prompt(fill_purpose(_load(a.brief)), prof, a.n)
-    import prompt_check as pc  # 생성자에게 갈 프롬프트도 같은 거름 루프(브리프 문장에 섞인 단어까지)
+    import prompt_check as pc  # 생성자에게 갈 프롬프트도 검사. 걸리면 보내지 않고 브리프를 고치게 한다(고쳐 쓰는 모델 없음)
     try:
-        prompt = pc.gate({"생성자": prompt}, pc.claude_reviser(a.prompt_reviser.split(":", 1)[-1])
-                         if a.prompt_reviser != "none" else None)[0]["생성자"]
+        prompt = pc.gate({"생성자": prompt})[0]["생성자"]
     except pc.PromptRejected as e:
         _emit({"ok": False, "prompt_rejected": str(e)}, a.json, f"프롬프트 거름 실패(생성자에게 보내지 않음): {e}")
         return 1
@@ -174,11 +173,14 @@ def cmd_run(a):
             _emit({"ok": False, "errors": errs}, a.json, "\n".join(errs))
             return 1
     import prompt_check as pc
-    fixer = None if a.prompt_reviser == "none" else pc.claude_reviser(a.prompt_reviser.split(":", 1)[-1])
+    import prompt_slots as ps
     try:
         out = rn.run(prof, b, kept, Path(a.out), a.rounds, check_network=not a.no_network, force_human=a.human,
                      answerers=answerers, reviewer=tuple(a.review.split(":", 1)) if a.review else None,
-                     prompt_reviser=fixer)
+                     slots=_load(Path(a.slots)) if a.slots else None)
+    except ps.SlotRejected as e:  # 수정 프로토콜: 걸린 빈칸만 다시 채워 다시 부른다
+        _emit({"ok": False, "status": "rejected", "slot_rejected": str(e)}, a.json, f"빈칸 거름 실패: {e}")
+        return 2
     except pc.PromptRejected as e:  # 걸린 지시문은 보내지 않는다
         _emit({"ok": False, "prompt_rejected": str(e), "gate_log": str(Path(a.out) / "prompt_gate.json")}, a.json,
               f"프롬프트 거름 실패(응답자에게 보내지 않음): {e}")
@@ -223,7 +225,10 @@ def cmd_stats(a):
 
 
 def cmd_combine(a):
-    cands = nk.combine(nk.load_batches(a.batches), _load(PROFILE)["max_keywords"], a.top, a.min_batches)
+    import search_words as sw
+
+    extra = sw.keywords(_load(Path(a.words))["result"]["keep"]) if a.words else []  # 검색자 낱말(외부 점검 통과분)
+    cands = nk.combine(nk.load_batches(a.batches), _load(PROFILE)["max_keywords"], a.top, a.min_batches, extra)
     if a.out:
         Path(a.out).write_text("\n".join(c["name"] for c in cands) + "\n", encoding="utf-8")
     _emit(cands, a.json, "\n".join(f'{c["name"]} ({c["score"]})' for c in cands) or "조합 없음")
@@ -243,6 +248,49 @@ def cmd_overlap(a):
     _emit([{"name": x, "read_as": y, "k": k, "n": n} for x, y, k, n in pairs], a.json,
           "\n".join(f"{x} → {y} {k}/{n}: 둘 중 하나를 바꿀 것" for x, y, k, n in pairs) or "겹침 없음")
     return 2 if pairs else 0
+
+
+def cmd_search(a):
+    import prompt_check
+    import search_words as sw
+
+    try:
+        import plain_runner
+
+        with plain_runner.usage(Path(a.out).with_name("usage.jsonl")):
+            state = sw.search(_load(Path(a.brief)), sw.claude_searcher(a.model), a.n)
+    except prompt_check.PromptRejected as e:
+        _emit({"status": "rejected", "reason": str(e)}, a.json, str(e))
+        return 1
+    Path(a.out).write_text(json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")
+    _emit({"status": "ok", "words": state["words"], "reasons": list(sw.REASONS)}, a.json,
+          "\n".join(f'{w["word"]} — {w["meaning"]}' + (f' (경고: {", ".join(w["warnings"])})' if w["warnings"] else "")
+                    for w in state["words"]) or "낱말 없음")
+    return 0 if state["words"] else 1
+
+
+def cmd_words_review(a):
+    """외부 에이전트의 키워드 점검(JSON) → 규칙 검사. 종료 코드 0 끝남, 2 거부(걸린 항목만 다시), 1 멈춤(사람이 정함)."""
+    import search_words as sw
+
+    p = Path(a.words)
+    state = _load(p)
+    done = state.get("result", {}).get("status")
+    if done in ("ok", "stopped"):
+        _emit(state["result"], a.json, f"이미 끝남: {done}")
+        return 0 if done == "ok" else 1
+    sub_ = _load(Path(a.decisions))
+    res = sw.review(state, sub_["decisions"] if isinstance(sub_, dict) else sub_)
+    state["result"] = res
+    p.write_text(json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")
+    if res["status"] == "ok":
+        text = (f'남김 {len(res["keep"])}개: {", ".join(res["keep"])}\n뺌(사용자 확인용): '
+                + (", ".join(f'{d["word"]}({d["reason"]})' for d in res["dropped"]) or "없음"))
+    else:
+        text = (f'{res["status"]}: ' + "; ".join(f'{e["word"]} {e["error"]}' for e in res["errors"])
+                + (f' / 빠진 낱말: {", ".join(res["missing"])}' if res["missing"] else ""))
+    _emit(res, a.json, text)
+    return {"ok": 0, "rejected": 2, "stopped": 1}[res["status"]]
 
 
 LMS_URL = __import__("plain_runner").LMS_BASE + "/v1/models"  # LMSTUDIO_URL 환경 변수로 바꿀 수 있음
@@ -338,7 +386,6 @@ def main(argv=None) -> int:
     s.add_argument("out")
     s.add_argument("--brief", default=str(ROOT / "docs/harness/briefs/name-harness.json"))
     s.add_argument("--n", type=int, default=20)
-    s.add_argument("--prompt-reviser", default="claude:sonnet", help="걸린 프롬프트를 고칠 격리 모델, none이면 고치지 않고 멈춤")
     s = add("lint", cmd_lint, "후보 형식 거르기 + 위험 단어·길이·맥락 경고(수집 전)")
     s.add_argument("brief")
     s.add_argument("names", help="쉼표 목록 또는 한 줄에 하나인 파일")
@@ -354,7 +401,7 @@ def main(argv=None) -> int:
     s.add_argument("--no-network", action="store_true")
     s.add_argument("--sep", default="-", choices=["-", "_"])
     s.add_argument("--no-local", action="store_true", help="로컬 LLM(LM Studio) 답변자 금지, 서버도 켜지 않음")
-    s.add_argument("--prompt-reviser", default="claude:sonnet", help="걸린 지시문을 고칠 격리 모델(최대 3회 고침→재검사). none이면 고치지 않고 멈춤")
+    s.add_argument("--slots", help='답변자 지시문 틀 빈칸 값 JSON(예: {"독자": "팀원"}). 걸리면 종료 코드 2, 걸린 빈칸만 다시')
     s.add_argument("--review", help="격리 평가자(경고만), 예: claude:sonnet. 사람 관점(UX·최종 사용자)으로 설명문을 다시 본다")
     s.add_argument("--answerers", help="프로필 기본 대신, 예: claude:haiku,gpt:gpt-6-luna,qwen:qwen/qwen3.8-27b")
     s = add("judge", cmd_judge, "이미 받은 표본을 규칙으로 판정")
@@ -372,6 +419,16 @@ def main(argv=None) -> int:
     s.add_argument("--top", type=int, default=30)
     s.add_argument("--min-batches", type=int, default=2, help="이 수 이상 묶음에 나온 키워드만")
     s.add_argument("--out", help="후보를 한 줄에 하나씩 쓸 파일(run에 그대로 넣을 수 있음)")
+    s.add_argument("--words", help="words-review가 끝난 낱말 파일: 남긴 낱말을 키워드 풀에 더함")
+    s = add("search", cmd_search, "검색자(격리, 웹 검색): 설명문만 보고 사람들이 쓰는 낱말을 찾음 → 낱말 파일")
+    s.add_argument("brief")
+    s.add_argument("out", help="낱말 파일(words-review가 이어서 씀)")
+    s.add_argument("--model", default="sonnet")
+    s.add_argument("--n", type=int, default=15)
+    s = add("words-review", cmd_words_review,
+            "외부 에이전트의 낱말 점검(JSON) 검사, 수정 프로토콜. 0 끝남, 2 걸린 항목만 다시, 1 멈춤(사람이 정함)")
+    s.add_argument("words", help="search가 만든 낱말 파일")
+    s.add_argument("decisions", help='{"decisions":[{"word":…,"keep":true|false,"reason":…,"note":…}]}')
     s = add("risk", cmd_risk, "검증 결과를 키워드별 오독률로")
     s.add_argument("--rules", required=True)
     s.add_argument("--samples", nargs="+", required=True)

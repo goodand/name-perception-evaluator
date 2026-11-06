@@ -51,7 +51,9 @@ def _answerers(profile: dict) -> list[tuple[str, str]]:
 
 def run(profile: dict, brief: dict, names: list[str], out_dir: Path, rounds: int | None = None,
         backend_factory=None, check_network: bool = True, force_human: bool = False, timeout: float = 300, answerers=None,
-        reviewer=None, reviewer_factory=None, prompt_reviser=None) -> dict:
+        reviewer=None, reviewer_factory=None, prompt_reviser=None, slots=None) -> dict:
+    """slots: 답변자 지시문 틀의 빈칸 값(외부 에이전트가 JSON으로 줌). 걸리면 prompt_slots.SlotRejected — 걸린 빈칸만 다시 채운다.
+    prompt_reviser는 시험용 훅만 남긴다(CLI에서는 쓰지 않음: 지시문을 다시 쓰는 모델은 두지 않는다)."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     backend_factory = backend_factory or cs.make_backend
@@ -66,9 +68,16 @@ def run(profile: dict, brief: dict, names: list[str], out_dir: Path, rounds: int
     # 프롬프트 거름 루프: 응답자·평가자에게 갈 지시문을 먼저 검사하고, 걸리면 고쳐 다시 검사. 깨끗해진 것만 보낸다
     import prompt_check
     import review_explanations as re_
-    want = {"답변자": cs.INSTR, **{f"관점:{v}": profile["perspectives"]["prompts"][v] for v in views if v != "developer"}}
+    import prompt_slots as ps
+    instr, slot_log = cs.INSTR, []
+    if slots:
+        t = ps.load()
+        instr, slot_log = ps.gate(t["templates"]["답변자"], {**t["defaults"]["답변자"], **slots})
+        (out_dir / "slot_gate.json").write_text(json.dumps(slot_log, ensure_ascii=False, indent=1), encoding="utf-8")
+    want = {"답변자": instr, **{f"관점:{v}": profile["perspectives"]["prompts"][v] for v in views if v != "developer"}}
     if any(k == "gpt" for k, _ in used):
         want["gpt 꼬리"] = cs.GPT_TAIL
+        want["gpt 역할"] = cs.GPT_PERSONA
     if reviewer:
         want["평가자"] = re_.INSTR
         want.update({f"평가자 관점:{v}": t for v, t in re_.VIEWS.items()})
@@ -106,6 +115,16 @@ def run(profile: dict, brief: dict, names: list[str], out_dir: Path, rounds: int
 
 def _collect_and_judge(profile, rules, rules_path, names, out_dir, rounds, backend_factory, timeout, used, views, prompts,
                        lint, avail, reviewer, reviewer_factory):
+    import plain_runner
+
+    log = out_dir / "usage.jsonl"
+    with plain_runner.usage(log, "첫눈 독자"):
+        _collect(rules, rules_path, out_dir, rounds, backend_factory, timeout, used, views, prompts)
+    with plain_runner.usage(log, "대조 평가자"):
+        return _judge(profile, rules, names, out_dir, timeout, views, lint, avail, reviewer, reviewer_factory, log)
+
+
+def _collect(rules, rules_path, out_dir, rounds, backend_factory, timeout, used, views, prompts):
     for kind, model in used:
         d = out_dir / model.replace("/", "_")  # 모델별 폴더: 같은 폴더면 이어받기가 다른 모델 표본을 건너뛴다
         d.mkdir(exist_ok=True)
@@ -116,6 +135,8 @@ def _collect_and_judge(profile, rules, rules_path, names, out_dir, rounds, backe
             else:
                 cv.collect_variant(call, v, prompts[v], rules, str(rules_path), rounds, d, model, kind, timeout)
 
+
+def _judge(profile, rules, names, out_dir, timeout, views, lint, avail, reviewer, reviewer_factory, log):
     files = sorted(out_dir.glob("*/*.jsonl"))
     res = ct.score(rules, files)
     sel = ct.choose(res, str(sorted(ct.rule_hash(r) for r in rules.values())))
@@ -133,13 +154,16 @@ def _collect_and_judge(profile, rules, rules_path, names, out_dir, rounds, backe
         for v in [v for v in views if v in re_.VIEWS] or ["end_user"]:
             rev.update({f"{rid}:{v}": s for rid, s in re_.review(rules, files, call, v, timeout).items()})
         (out_dir / "review.json").write_text(json.dumps(rev, ensure_ascii=False, indent=1), encoding="utf-8")
-    _report(out_dir / "report.md", rules, res, sel, lint, avail, views, warnings, rev)
-    return {"review": rev, "selected": sel["selected"], "fallback": sel.get("fallback", False), "reason": sel["reason"],
+    import plain_runner
+
+    cost = plain_runner.summarize(log)
+    _report(out_dir / "report.md", rules, res, sel, lint, avail, views, warnings, rev, cost)
+    return {"usage": cost, "review": rev, "selected": sel["selected"], "fallback": sel.get("fallback", False), "reason": sel["reason"],
             "warnings": warnings, "scores": res, "lint": lint, "availability": avail, "files": [str(f) for f in files]}
 
 
 def _report(path: Path, rules: dict, res: dict, sel: dict, lint: list, avail: dict, views: list,
-            warnings: list = (), rev: dict | None = None) -> None:
+            warnings: list = (), rev: dict | None = None, cost: dict | None = None) -> None:
     gate = [w for w in lint if w.startswith("프롬프트 거름")]
     lines = ["# 명명 검증 결과", "", f"관점: {', '.join(views)}", "",
              f"프롬프트 거름: {gate[0] if gate else '통과(고침 없음)'} — 걸린 지시문은 고쳐 다시 검사한 뒤에만 보냄", "",
@@ -156,6 +180,11 @@ def _report(path: Path, rules: dict, res: dict, sel: dict, lint: list, avail: di
     if rev:
         import review_explanations as re_
         lines += re_.report_lines(rev)
+    if cost:
+        lines += ["", "## 주체별 호출 기록(usage.jsonl)", "", "| 주체 | 호출 | 시간(초) | 입력 | 출력 | 캐시 읽기 | 비용(USD) |",
+                  "|---|---|---|---|---|---|---|"]
+        lines += [f'| {a} | {s["calls"]} | {s["seconds"]} | {s["input"]} | {s["output"]} | {s["cache_read"]} | {s["cost_usd"]} |'
+                  for a, s in cost.items()]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

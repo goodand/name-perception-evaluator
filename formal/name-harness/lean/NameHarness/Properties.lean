@@ -129,7 +129,7 @@ def DICTS : List (String × List Sig) :=
 
 theorem test_check_finds_words_from_both_dicts :
     promptCheck DICTS ["return", "json", "for", "this", "software", "tool", "코드", "이름"]
-      = [("software", "general"), ("코드", "general"), ("json", "leaky"), ("tool", "leaky")] ∧
+      = [("json", "leaky"), ("software", "general"), ("tool", "leaky"), ("코드", "general")] ∧  -- 지시문 등장 순
     promptCheck DICTS ["이름", "하나가", "주어집니다"] = [] := by decide
 
 /-! ## lint_names (test_lint_names*) — 조각 나누기·소문자화는 모델 밖이라 조각 목록을 직접 준다 -/

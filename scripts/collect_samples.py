@@ -36,6 +36,8 @@ FRAMING = "이름 하나가 주어집니다. 다른 설명은 없습니다."
 CONTRACT = "이 이름을 처음 본 사람이 가장 자연스럽게 떠올릴 뜻을 한국어 1~2문장으로 적어 주세요. 모르면 짐작해서 적고, 뜻만 적어 주세요."
 INSTR = f"{FRAMING} {CONTRACT}"
 # gpt(동봉 OMP 실행기)는 출력이 이 모양이어야 받는다. 실행기를 고치지 않으므로 gpt에만 붙인다(지시문 검사에서 경고됨)
+GPT_PERSONA = ("당신은 사람이 화면에서 읽을 이름과 글을 쓰는 작가입니다. "
+               "처음 보는 사람의 눈으로 읽어 주세요.\n\n")  # gpt만: 형식 꼬리(GPT_TAIL)를 희석(사용자 2026-11-06)
 GPT_TAIL = '\nReturn only a JSON object {"items":[{"id":"...","term":"...","explanation":"..."}]}.'
 
 
@@ -70,7 +72,16 @@ def make_backend(kind: str, model: str, art_dir: Path):
     if kind == "gpt":
         run_agent = load_adapters().run_agent  # gpt-6-luna(OMP) 격리 실행기, 모델은 실행기 설정
 
-        return lambda names, timeout: run_agent({"names": names}, INSTR_NOW() + GPT_TAIL, timeout, None, cancel, art_dir)
+        import plain_runner
+        import time
+
+        def call(names, timeout):
+            t0 = time.perf_counter()
+            try:
+                return run_agent({"names": names}, GPT_PERSONA + INSTR_NOW() + GPT_TAIL, timeout, None, cancel, art_dir)
+            finally:
+                plain_runner.record("gpt", model, time.perf_counter() - t0)  # 토큰은 동봉 실행기가 주지 않음
+        return call
     raise SystemExit(f"알 수 없는 백엔드: {kind}")
 
 

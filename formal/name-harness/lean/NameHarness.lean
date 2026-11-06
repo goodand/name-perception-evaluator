@@ -1,3 +1,9 @@
 import NameHarness.Explore
 import NameHarness.System
 import NameHarness.Properties
+import NameHarness.Review
+import NameHarness.Slots
+import NameHarness.Combine
+import NameHarness.ProtocolProperties
+import NameHarness.Lemma
+import NameHarness.LemmaProperties

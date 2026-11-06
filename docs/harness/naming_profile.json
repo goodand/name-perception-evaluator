@@ -17,7 +17,7 @@
   "separate_from_answerer": "생성자와 답변자는 서로 다른 격리 프로세스·대화창",
   "batches": "여러 묶음을 독립 생성해 키워드 통계(scripts/name_keywords.py stats)를 낸다",
   "models": "다양성: gpt·Haiku가 Sonnet보다 높았다(2026-11-04 실측). 쓸 수 있는 모델을 섞는다",
-  "prompt_template": "아래 일을 하는 것에 붙일 이름을 지어 주세요.\n\n하는 일: {purpose}.\n사람이 하는 일: {human_actions}\n\n이름은 영어 소문자 단어 1~{max_keywords}개를 하이픈으로 잇습니다.\n\n서로 다른 단어를 써서 후보 {n}개를 내 주세요. 한 줄에 하나씩, 이름 다음에 ' — '를 쓰고 그 이름에서 하는 일이 어떻게 떠오르는지 한 줄로 적어 주세요. 다른 말은 쓰지 마세요.",
+  "prompt_template": "당신은 사람이 읽는 이름과 글을 다듬는 작가입니다.\n\n아래 일을 하는 것에 붙일 이름을 지어 주세요.\n\n하는 일: {purpose}.\n사람이 하는 일: {human_actions}\n\n이름은 영어 소문자 단어 1~{max_keywords}개를 하이픈으로 잇습니다.\n\n서로 다른 단어를 써서 후보 {n}개를 내 주세요. 한 줄에 하나씩, 이름 다음에 ' — '를 쓰고 그 이름에서 하는 일이 어떻게 떠오르는지 한 줄로 적어 주세요. 다른 말은 쓰지 마세요.",
   "gpt_tail": "\nReturn only a JSON object {\"candidates\":[{\"name\":\"...\",\"why\":\"...\"}]}."
  },
  "answerers": {

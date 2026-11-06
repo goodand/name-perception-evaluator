@@ -12,7 +12,19 @@
 - 결정·질문 기록: `docs/harness/DECISION_LOG.md` (사용자가 정한 것과 물은 것을 함께 남긴다)
 - 선택 답변자: gpt-6-luna(OMP 실행기가 있는 PC — 경로는 `NAME_HARNESS_OMP_ROOT` 환경 변수로 지정), LM Studio 로컬 LLM(서버가 켜진 PC — 주소는 `LMSTUDIO_URL`, 기본 127.0.0.1:1234). `namecheck doctor`가 셋(claude·gpt·qwen)의 가능 여부를 보여 준다. 없으면 Claude만으로 돈다
 
-## 네 주체
+## 하네스 안의 주체(재현되지 않는 모델만, 서로 맥락 공유 없음)
+
+| 주체(초안 용어) | 받는 것 | 내는 것 | 명령 |
+|---|---|---|---|
+| 검색자 | 설명문(하는 일·사람 행동)만 | 사람들이 쓰는 낱말·뜻·출처 | `search` |
+| 작명자 | 하는 일·사람 행동만(평문, 역할 부여) | 하이픈 이름 + 한 줄 | `generate` |
+| 첫눈 독자 | 이름 하나 + 평문 지시문 | 자유 서술 1~2문장 | `run` |
+| 대조 평가자 | 의도·이웃 개념 이름·설명문 | 같음/다른 뜻/불분명(경고만) | `run --review` |
+
+판정·사전 검사(영어 표제어 simplemma: 일치는 막음, 낱말 안 포함은 경고)·겹침·조합·조사 맞춤(Kiwi)은 같은 입력에 같은 결과라 주체가 아니라 장치다. 지시문을 고쳐 쓰는 모델은 두지 않는다: 지시문은 틀(`prompt_templates.json`)로 고정하고 바깥 에이전트가 빈칸만 채운다.
+안의 주체에게는 형식 말(schema·JSON)을 넣지 않는다. 예외: 선택 답변자 gpt는 동봉 실행기가 형식 꼬리를 요구해, 쓸 때만 앞에 역할 부여(화면 글 작가)를 붙여 희석한다.
+
+## 하네스 밖의 주체(네 주체)
 
 | 주체 | 보는 것 | 이 문서에서 볼 절 |
 |---|---|---|
@@ -39,12 +51,15 @@
 | 에이전트 | 만든다 | 브리프 빈칸 틀(용어 정의 템플릿) | `namecheck brief-new <out.json>` → `<…>`를 채운다. `definition.pattern`(사람이 {xx}끼리 대조해 {yy}를 파악하고 {zz}를 결정한다)을 채우면 purpose가 자동으로 만들어진다 |
 | 에이전트 | 검사한다 | 브리프 형식 | `namecheck brief-check <brief> --json` (실패 시 종료 코드 1) |
 | 에이전트 | 만든다 | 후보 묶음(격리 생성) | `namecheck generate haiku,haiku,sonnet <out>/gen --brief <brief>` |
-| 에이전트 | 조합한다 | 생성 묶음 키워드로 후보 추가 | `namecheck combine <out>/gen/*.json --top 30 --out <후보.txt>` (2개 이상 묶음에 나온 키워드만, [대상]-[역할] 자리, 한 이름 안 중복 없음, 기존 이름 제외. 결과를 `run`에 그대로 넣는다) |
+| 에이전트 | 조합한다 | 생성 묶음 키워드로 후보 추가 | `namecheck combine <out>/gen/*.json --top 30 --out <후보.txt>` (2개 이상 묶음에 나온 키워드만, [대상]-[역할] 자리, 한 이름 안 중복 없음, 기존 이름 제외. `--words <낱말.json>`이면 점검을 통과한 검색자 낱말을 쪼개 키워드 풀에 더한다. 결과를 `run`에 그대로 넣는다) |
+| 에이전트 | 찾게 한다 | 사람들이 쓰는 낱말(검색자, 격리, 웹 검색) | `namecheck search <brief> <낱말.json> [--model sonnet] [--n 15] --json` (검색자 지시문이 사전에 걸리면 보내지 않음. 낱말마다 개발 용어 경고) |
+| 에이전트 | 점검한다 | 검색자 낱말(남김·뺌) | `namecheck words-review <낱말.json> <결정.json> --json`. 결정: `{"decisions":[{"word","keep","reason","note"}]}`. 검색자가 내지 않은 낱말·정해진 보기(뜻이 다름·너무 넓음·개발 용어 경고·기타) 밖 이유·설명 없는 기타는 거부, 받아들인 항목은 못 바꿈. 0 끝남 / 2 `fix_only`만 다시 / 1 3회 넘어 멈춤(사람이 정함). 뺀 낱말은 사용자 확인용으로 따로 보인다 |
+| 에이전트 | 채운다 | 지시문 틀 빈칸 | `python scripts/prompt_slots.py 답변자 <빈칸.json> --json`. 조사는 `{빈칸|이}`처럼 기본형으로 쓰면 한글 값은 Kiwi가 맞춘다. 영어·숫자로 끝나는 값은 조사 자리에 못 둔다(다시 채움) |
 | 에이전트 | 센다 | 묶음 키워드 통계 | `namecheck stats <out>/gen/*.json --json` |
 | 에이전트 | 거른다 | 후보 형식·길이, 위험 단어 | `namecheck lint <brief> <후보> --json` |
 | 에이전트 | 조회한다 | 이름 충돌(참고 정보) | `namecheck availability <후보> --json` |
 | 에이전트 | 확인한다 | 쓸 수 있는 답변자 백엔드 | `namecheck doctor --json` |
-| 에이전트 | 돌린다 | 수집→오독 게이트→선택 | `namecheck run <brief> <후보> <out> [--human] [--answerers claude:haiku,gpt:gpt-6-luna,qwen:<id>] [--no-local] [--prompt-reviser claude:sonnet|none] --json` (보내기 전 프롬프트 거름 루프: 개발·SW 단어·형식 요구가 걸리면 그 지시문은 보내지 않고 격리 모델이 고침→다시 검사, 최대 3회. 안 되면 종료 코드 1, 기록 `<out>/prompt_gate.json`. qwen이 있으면 LM Studio를 자동으로 켬. GPU를 다른 세션이 쓰면 `--no-local`) |
+| 에이전트 | 돌린다 | 수집→오독 게이트→선택 | `namecheck run <brief> <후보> <out> [--human] [--answerers claude:haiku,gpt:gpt-6-luna,qwen:<id>] [--no-local] [--slots <빈칸.json>] --json` (보내기 전 지시문 검사: 개발·SW 단어·형식 요구가 걸리면 보내지 않는다. 답변자 지시문은 틀의 빈칸을 `--slots`로 채우고, 빈칸이 걸리면 종료 코드 2 → 걸린 빈칸만 다시 채워 다시 부른다(수정 프로토콜, `<out>/slot_gate.json`). 고정 지시문이 걸리면 종료 코드 1(틀을 고칠 일, 개발 쪽). 기록 `<out>/prompt_gate.json`. qwen이 있으면 LM Studio를 자동으로 켬. GPU를 다른 세션이 쓰면 `--no-local`) |
 | 에이전트 | 다시 본다 | 설명문(격리 평가자, 사람 관점, 경고만) | `namecheck run … --review claude:sonnet` 또는 `python scripts/review_explanations.py <rules.json> <out.json> <표본…> [--view end_user\|ux]`. 평가자는 의도·이웃 개념 이름·설명문만 받고 규칙 신호어·판정·다른 후보는 받지 않는다 |
 | 에이전트 | 찾는다 | 한 묶음 이름끼리 뜻 겹침(예: 칸 이름 10개) | `namecheck overlap --rules <이름마다 자기 must가 있는 rules.json> --samples <out>/*/*.jsonl --json` (A의 설명이 B의 must를 모두 채우면 겹침, 종료 코드 2 → 둘 중 하나를 바꾼다) |
 | 에이전트 | 모은다 | 키워드별 오독률 | `namecheck risk --rules <out>/rules.json --samples <out>/*/*.jsonl --json` |

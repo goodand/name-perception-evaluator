@@ -182,7 +182,7 @@ pyyaml==6.0.3
    ```bash
    grep -rnIE "$PRIVATE_PATTERN|Users[\\/]" docs scripts skills tests formal setup.sh README.md
    ```
-   있으면 지우거나 `<home>`으로 바꾼다. 2026-11-05 점검: 하네스 파일(docs/harness, scripts, skills, tests, setup.sh, formal)에서 이 문서 1건만 있었고 `<home>`으로 바꿨다. PROVENANCE의 `D:/web_chat_gpt/...`는 드라이브 경로이고 개인 이름이 아니므로 출처 기록으로 둔다.
+   `PRIVATE_PATTERN`(PC 사용자명·계정·회사 도메인을 `|`로 이은 것)은 저장소에 적지 않고 각자 PC에서 환경 변수로 둔다. 있으면 지우거나 `<home>`으로 바꾼다. 2026-11-05 점검: 하네스 파일(docs/harness, scripts, skills, tests, setup.sh, formal)에서 이 문서 1건만 있었고 `<home>`으로 바꿨다. PROVENANCE의 `D:/web_chat_gpt/...`는 드라이브 경로이고 개인 이름이 아니므로 출처 기록으로 둔다.
 3. 자료 파일 확장자가 없는지 — 0건이어야 한다:
    ```bash
    git ls-files | grep -iE '\.(pdf|csv|xlsx?|hwpx?)$'

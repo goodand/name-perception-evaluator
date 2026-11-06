@@ -54,7 +54,13 @@
    "스키마",
    "데이터베이스",
    "서버",
-   "문자열"
+   "문자열",
+   "validator",
+   "validation",
+   "deployment",
+   "codebase",
+   "pytest",
+   "unittest"
   ]
  },
  "leaky": {

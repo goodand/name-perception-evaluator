@@ -1,0 +1,5 @@
+.lake/
+diff_out.txt
+.diff_tmp*
+lemma_out.txt
+Axioms.lean

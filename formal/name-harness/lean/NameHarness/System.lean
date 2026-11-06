@@ -106,10 +106,21 @@ def overlapWith (rules : List Rule) (a : Rule) (xs : List Sample) : List (String
   (rules.filter fun b => b.id != a.id && !b.must.isEmpty).map fun b =>
     (b.id, (ss.filter fun s => b.must.all (hasAny s.text)).length)
 
-/-- src: prompt_check.py `check` — 사전에 있는 단어가 지시문에 있으면 (단어, 사전) 한 번씩. -/
+/-- 안정 삽입 정렬(구조 재귀라 `decide`가 계산할 수 있다). `le a b`가 참이면 a가 앞. -/
+def insertBy {α} (le : α → α → Bool) (x : α) : List α → List α
+  | [] => [x]
+  | y :: ys => if le y x then y :: insertBy le x ys else x :: y :: ys
+
+def insertionSort {α} (le : α → α → Bool) : List α → List α
+  | [] => []
+  | x :: xs => insertBy le x (insertionSort le xs)
+
+/-- src: prompt_check.py `check` — 사전에 있는 단어가 지시문에 있으면 (단어, 사전) 한 번씩,
+지시문에서 처음 나온 자리 순(`sorted(key=text.find)`; 안정 정렬이라 같은 자리는 사전 순서 유지). -/
 def promptCheck (dicts : List (String × List Sig)) (prompt : Text) : List (Sig × String) :=
-  (dicts.flatMap fun (d, ws) => ws.map (·, d)).filter (fun (w, _) => w ∈ prompt)
+  let hits := (dicts.flatMap fun (d, ws) => ws.map (·, d)).filter (fun (w, _) => w ∈ prompt)
     |>.foldl (fun acc (w, d) => if acc.any (·.1 == w) then acc else acc ++ [(w, d)]) []
+  insertionSort (fun a b => prompt.idxOf a.1 ≤ prompt.idxOf b.1) hits
 
 /-- src: check_terms.py `MAX_KEYWORDS` -/
 def MAX_KEYWORDS : Nat := 3
