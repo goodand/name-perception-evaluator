@@ -152,7 +152,7 @@ def _judge(profile, rules, names, out_dir, timeout, views, lint, avail, reviewer
         kind, model = reviewer
         call = (reviewer_factory or re_.make_reviewer)(kind, model, out_dir / "art_review")
         for v in [v for v in views if v in re_.VIEWS] or ["end_user"]:
-            rev.update({f"{rid}:{v}": s for rid, s in re_.review(rules, files, call, v, timeout).items()})
+            rev.update({f"{rid}:{v}": s for rid, s in re_.review(rules, files, call, v, timeout, structured=reviewer_factory is None).items()})
         (out_dir / "review.json").write_text(json.dumps(rev, ensure_ascii=False, indent=1), encoding="utf-8")
     import plain_runner
 

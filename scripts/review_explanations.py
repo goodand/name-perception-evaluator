@@ -23,6 +23,14 @@ INSTR = (
     "'헷갈리면 안 되는 것'과 가까우면 다른 뜻입니다.\n"
     "설명 번호마다 한 줄씩, 예: 1. 다른 뜻 — 읽힌 뜻"
 )
+# 구조화된 출력용: 형식은 schema가 정하므로 줄 형식 예시를 뺀다. 평가자는 의도를 알고 보기에서 고르는 주체라
+# 형식 신호의 영향이 작다(응답자·작명자와 다름, 사용자 2026-11-06 "그래서 주체를 구분하는게 중요")
+INSTR_STRUCT = INSTR.rsplit("\n", 1)[0]
+SCHEMA = {"type": "object", "required": ["items"], "properties": {"items": {"type": "array", "items": {
+    "type": "object", "required": ["no", "verdict", "read_as"],
+    "properties": {"no": {"type": "integer"}, "verdict": {"type": "string", "enum": ["같음", "다른 뜻", "불분명"]},
+                   "read_as": {"type": "string"}}}}}}
+MAX_ROUNDS = 3
 VERDICTS = ("같음", "다른 뜻", "불분명")
 
 
@@ -65,9 +73,35 @@ def parse(text: str) -> dict:
     return out
 
 
-def review(rules: dict, files: list, call, view: str = "end_user", timeout: float = 300) -> dict:
-    """call(평문 프롬프트, timeout) → 평문 답."""
-    instr = INSTR.format(view=VIEWS[view])
+def _items(out, n: int) -> dict:
+    """평가자 출력(구조화된 dict 또는 평문) → {0부터 번호: {verdict, read_as}}. 보기 밖·범위 밖은 버린다."""
+    if isinstance(out, dict):
+        got = {}
+        for it in out.get("items") or []:
+            if isinstance(it, dict) and isinstance(it.get("no"), int):
+                got[it["no"] - 1] = {"verdict": it.get("verdict"), "read_as": str(it.get("read_as") or "").strip()}
+    else:
+        got = parse(str(out))
+    return {i: v for i, v in got.items() if 0 <= i < n and v["verdict"] in VERDICTS}
+
+
+def ask(call, rule: dict, texts: list[str], instr: str, timeout: float):
+    """수정 프로토콜: 형식이 틀리거나 빠진 번호만 새 번호로 다시 묻는다. 받아들인 번호는 다시 묻지 않는다. 최대 MAX_ROUNDS회."""
+    items, log, pending = {}, [], list(range(len(texts)))
+    for rnd in range(MAX_ROUNDS):
+        got = _items(call(prompt_for(rule, [texts[i] for i in pending], instr), timeout), len(pending))
+        for j, v in got.items():
+            items[pending[j]] = v
+        pending = [i for i in pending if i not in items]
+        log.append({"round": rnd, "accepted": len(got), "pending": pending})
+        if not pending:
+            break
+    return items, log
+
+
+def review(rules: dict, files: list, call, view: str = "end_user", timeout: float = 300, structured: bool = False) -> dict:
+    """call(프롬프트, timeout) → 평문 답 또는 구조화된 dict."""
+    instr = (INSTR_STRUCT if structured else INSTR).format(view=VIEWS[view])
     res = {}
     for rid, texts in explanations(rules, files).items():
         r = rules[rid]
@@ -76,12 +110,13 @@ def review(rules: dict, files: list, call, view: str = "end_user", timeout: floa
         if not texts:
             continue
         try:
-            items = parse(call(prompt_for(r, texts, instr), timeout))
+            items, log = ask(call, r, texts, instr, timeout)
         except Exception as exc:  # noqa: BLE001 — 평가자 실패는 경고 없음으로 두고 기록만
             s["error"] = f"{type(exc).__name__}: {exc}"
             continue
+        s["rounds"] = len(log)
         if set(items) != set(range(len(texts))):
-            s["error"] = f"응답 {len(items)}/{len(texts)}개"
+            s["error"] = f"응답 {len(items)}/{len(texts)}개({len(log)}회 물음)"
         for i, t in enumerate(texts):
             v = items.get(i, {})
             if v.get("verdict") == "같음":
@@ -93,12 +128,15 @@ def review(rules: dict, files: list, call, view: str = "end_user", timeout: floa
     return res
 
 
-def make_reviewer(kind: str, model: str, art_dir: Path):
-    """평문 입출력(plain_runner). gpt는 동봉 실행기가 평문을 못 받아 쓰지 않는다."""
+def make_reviewer(kind: str, model: str, art_dir: Path, structured: bool = True):
+    """구조화된 출력(claude --json-schema, LM Studio response_format)이 기본. structured=False면 평문.
+    gpt는 동봉 실행기가 schema를 못 받아 쓰지 않는다."""
     import plain_runner
 
     if kind not in plain_runner.TEXT:
         raise SystemExit(f"평가자 백엔드는 {', '.join(plain_runner.TEXT)}만: {kind}")
+    if structured:
+        return lambda prompt, timeout: plain_runner.TEXT[kind](prompt, model, timeout, art_dir, schema=SCHEMA)
     return lambda prompt, timeout: plain_runner.TEXT[kind](prompt, model, timeout, art_dir)
 
 
@@ -118,7 +156,7 @@ def main() -> None:
     opts = {k: a[a.index(k) + 1] for k in ("--reviewer", "--view") if k in a}
     files = [x for x in a[2:] if not x.startswith("--") and x not in opts.values()]
     kind, model = opts.get("--reviewer", "claude:sonnet").split(":", 1)
-    rev = review(rules, files, make_reviewer(kind, model, out.parent / "art_review"), opts.get("--view", "end_user"))
+    rev = review(rules, files, make_reviewer(kind, model, out.parent / "art_review"), opts.get("--view", "end_user"), structured=True)
     out.write_text(json.dumps(rev, ensure_ascii=False, indent=1), encoding="utf-8")
     print("\n".join(report_lines(rev)))
 

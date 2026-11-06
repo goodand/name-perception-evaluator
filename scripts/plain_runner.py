@@ -80,8 +80,10 @@ def _clean(text: str) -> str:
     return re.sub(r"^\s*(뜻|설명)\s*[:：]\s*", "", text)
 
 
-def claude_text(prompt: str, model: str, timeout: float, art_dir: Path | None = None, tools: str = "") -> str:
-    """tools: 허용할 도구(예: 검색자는 "WebSearch,WebFetch"). 기본은 도구 없음."""
+def claude_text(prompt: str, model: str, timeout: float, art_dir: Path | None = None, tools: str = "",
+                schema: dict | None = None):
+    """tools: 허용할 도구(예: 검색자는 "WebSearch,WebFetch"). 기본은 도구 없음.
+    schema: 구조화된 출력(claude --json-schema). 주면 dict를 돌려준다. 응답자·작명자에게는 쓰지 않는다(형식 신호)."""
     from collect_samples import load_adapters
 
     _safe_child_env = load_adapters()._safe_child_env
@@ -89,7 +91,8 @@ def claude_text(prompt: str, model: str, timeout: float, art_dir: Path | None = 
     args = [shutil.which("claude") or "claude", "-p", "--setting-sources", "", "--tools", tools, *(["--allowedTools", tools] if tools else []),
             "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}',
             "--system-prompt", SYSTEM_PROMPT, "--exclude-dynamic-system-prompt-sections",
-            "--disable-slash-commands", "--no-session-persistence", "--model", model, "--output-format", "json"]
+            "--disable-slash-commands", "--no-session-persistence", "--model", model, "--output-format", "json",
+            *(["--json-schema", json.dumps(schema, ensure_ascii=False)] if schema else [])]
     t0 = time.perf_counter()
     try:
         with tempfile.TemporaryDirectory(prefix="iso_") as work:
@@ -107,11 +110,15 @@ def claude_text(prompt: str, model: str, timeout: float, art_dir: Path | None = 
                        ensure_ascii=False, indent=2), encoding="utf-8")
     if d.get("is_error"):
         raise RuntimeError(f"claude 오류: {str(d.get('result', ''))[:200]}")
+    if schema:
+        return d.get("structured_output") or json.loads(d.get("result") or "{}")
     return _clean(d.get("result", ""))
 
 
-def qwen_text(prompt: str, model: str, timeout: float, art_dir: Path | None = None) -> str:
+def qwen_text(prompt: str, model: str, timeout: float, art_dir: Path | None = None, schema: dict | None = None):
     body = {"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.7}
+    if schema:  # LM Studio 구조화된 출력
+        body["response_format"] = {"type": "json_schema", "json_schema": {"name": "out", "schema": schema}}
     req = urllib.request.Request(LMS_CHAT, data=json.dumps(body).encode("utf-8"),
                                  headers={"Content-Type": "application/json"})
     t0 = time.perf_counter()
@@ -121,7 +128,8 @@ def qwen_text(prompt: str, model: str, timeout: float, art_dir: Path | None = No
         record("qwen", model, time.perf_counter() - t0, ok=False)
         raise
     record("qwen", model, time.perf_counter() - t0, {"usage": d.get("usage")})
-    return _clean(d["choices"][0]["message"]["content"])
+    text = d["choices"][0]["message"]["content"]
+    return json.loads(_clean(text)) if schema else _clean(text)
 
 
 TEXT = {"claude": claude_text, "qwen": qwen_text}

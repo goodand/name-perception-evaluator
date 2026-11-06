@@ -13,7 +13,10 @@ if [ -z "$PY" ]; then
   else python -m venv .venv; fi
   if [ -x .venv/Scripts/python.exe ]; then PY=.venv/Scripts/python.exe; else PY=.venv/bin/python; fi
 fi
-if ! command -v uv >/dev/null 2>&1 || [ ! -f uv.lock ]; then "$PY" -m pip install -q pyyaml pytest; fi
+# requirements.txt 전부(kiwipiepy·simplemma는 버전 고정: 재현 해시 테스트가 그 버전을 본다)
+# 회사망에서 인증서 오류(UnknownIssuer)가 나면 uv의 --system-certs로 시스템 인증서 저장소를 쓴다
+if command -v uv >/dev/null 2>&1; then VIRTUAL_ENV="$PWD/.venv" uv pip install -q --system-certs -r requirements.txt
+else "$PY" -m pip install -q -r requirements.txt; fi
 echo "python: $("$PY" --version)"
 
 if command -v claude >/dev/null 2>&1; then
@@ -32,6 +35,7 @@ cat <<'EOF'
 설치 확인 끝. 다음 단계는 docs/harness/NAMING_GUIDE.md:
   1) docs/harness/briefs/name-harness.json 을 복사해 새 주제 브리프 작성
   2) 후보 생성(격리):   python scripts/namecheck.py generate haiku,haiku,sonnet <out>/gen --brief <brief>
-  3) 한 번에 검증:      python scripts/namecheck.py run <brief> <후보.txt|a,b,c> <out> [--human] [--review claude:sonnet]
-  4) <out>/report.md 확인 후 설명문을 직접 읽어 교차 확인
+  3) (선택) 검색자:     python scripts/namecheck.py search <brief> <out>/words.json → words-review로 점검 → combine --words
+  4) 한 번에 검증:      python scripts/namecheck.py run <brief> <후보.txt|a,b,c> <out> [--human] [--review claude:sonnet]
+  5) <out>/report.md 확인(주체별 호출 기록 표 포함) 후 설명문을 직접 읽어 교차 확인
 EOF
