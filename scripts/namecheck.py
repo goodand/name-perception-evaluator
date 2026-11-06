@@ -18,7 +18,8 @@ import name_keywords as nk  # noqa: E402
 ROOT = Path(__file__).parents[1]
 PROFILE = ROOT / "docs/harness/naming_profile.json"
 AUDIENCES = ("developer", "end-user", "mixed")
-NAME_RE = {"-": re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$"), "_": re.compile(r"^[a-z0-9]+(_[a-z0-9]+)*$")}
+NAME_RE = {"-": re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$"), "_": re.compile(r"^[a-z0-9]+(_[a-z0-9]+)*$"),
+           " ": re.compile(r"^[가-힣]+( [가-힣]+)*$")}  # " " = 한국어 이름(띄어쓰기로 낱말 구분)
 
 
 def _load(p) -> dict:
@@ -84,7 +85,8 @@ def filter_names(names: list[str], max_keywords: int, sep: str = "-") -> tuple[l
     kept, dropped = [], []
     for n in names:
         if not NAME_RE[sep].match(n):
-            dropped.append([n, f"형식: 영어 소문자·숫자 단어를 '{sep}'로 이어야 함"])
+            dropped.append([n, "형식: 한글 낱말을 띄어쓰기로 이어야 함" if sep == " "
+                            else f"형식: 영어 소문자·숫자 단어를 '{sep}'로 이어야 함"])
         elif len(n.split(sep)) > max_keywords:
             dropped.append([n, f"키워드 {len(n.split(sep))}개(최대 {max_keywords})"])
         else:
@@ -128,7 +130,7 @@ def cmd_lint(a):
 
 def cmd_generate(a):
     prof = _load(PROFILE)
-    prompt = nk.gen_prompt(fill_purpose(_load(a.brief)), prof, a.n)
+    prompt = nk.gen_prompt(fill_purpose(_load(a.brief)), prof, a.n, a.lang)
     import prompt_check as pc  # 생성자에게 갈 프롬프트도 검사. 걸리면 보내지 않고 브리프를 고치게 한다(고쳐 쓰는 모델 없음)
     try:
         prompt = pc.gate({"생성자": prompt})[0]["생성자"]
@@ -233,6 +235,18 @@ def cmd_combine(a):
         Path(a.out).write_text("\n".join(c["name"] for c in cands) + "\n", encoding="utf-8")
     _emit(cands, a.json, "\n".join(f'{c["name"]} ({c["score"]})' for c in cands) or "조합 없음")
     return 0 if cands else 1
+
+
+def cmd_dedupe(a):
+    user = _names(a.user) if a.user else []
+    gen = [n for b in nk.load_batches(a.batches) for n in b]
+    kept, dropped = nk.dedupe(user, gen)
+    if a.out:
+        Path(a.out).write_text("\n".join(kept) + "\n", encoding="utf-8")
+    _emit({"kept": kept, "dropped": dropped, "user": user}, a.json,
+          f"남김 {len(kept)}개(사용자 {len(user)}개 먼저)\n" + "\n".join(
+              f'뺌 {d["name"]} → {d["kept_as"]} ({d["reason"]})' for d in dropped))
+    return 0 if kept else 1
 
 
 def cmd_risk(a):
@@ -386,10 +400,11 @@ def main(argv=None) -> int:
     s.add_argument("out")
     s.add_argument("--brief", default=str(ROOT / "docs/harness/briefs/name-harness.json"))
     s.add_argument("--n", type=int, default=20)
+    s.add_argument("--lang", default="en", choices=["en", "ko"], help="ko면 한국어 이름(낱말 띄어쓰기)으로 짓게 한다")
     s = add("lint", cmd_lint, "후보 형식 거르기 + 위험 단어·길이·맥락 경고(수집 전)")
     s.add_argument("brief")
     s.add_argument("names", help="쉼표 목록 또는 한 줄에 하나인 파일")
-    s.add_argument("--sep", default="-", choices=["-", "_"])
+    s.add_argument("--sep", default="-", choices=["-", "_", " "], help='" "이면 한국어 이름(띄어쓰기)')
     s = add("availability", cmd_availability, "PyPI·npm·GitHub 충돌 조회(참고 정보)")
     s.add_argument("names")
     s = add("run", cmd_run, "브리프+후보 → 수집(Sonnet·Haiku) → 오독 게이트 → 선택 → report.md")
@@ -399,7 +414,7 @@ def main(argv=None) -> int:
     s.add_argument("--rounds", type=int)
     s.add_argument("--human", action="store_true", help="사람 관점(UI/UX·최종 사용자) 추가")
     s.add_argument("--no-network", action="store_true")
-    s.add_argument("--sep", default="-", choices=["-", "_"])
+    s.add_argument("--sep", default="-", choices=["-", "_", " "], help='" "이면 한국어 이름(띄어쓰기)')
     s.add_argument("--no-local", action="store_true", help="로컬 LLM(LM Studio) 답변자 금지, 서버도 켜지 않음")
     s.add_argument("--slots", help='답변자 지시문 틀 빈칸 값 JSON(예: {"독자": "팀원"}). 걸리면 종료 코드 2, 걸린 빈칸만 다시')
     s.add_argument("--review", help="격리 평가자(경고만), 예: claude:sonnet. 사람 관점(UX·최종 사용자)으로 설명문을 다시 본다")
@@ -429,6 +444,10 @@ def main(argv=None) -> int:
             "외부 에이전트의 낱말 점검(JSON) 검사, 수정 프로토콜. 0 끝남, 2 걸린 항목만 다시, 1 멈춤(사람이 정함)")
     s.add_argument("words", help="search가 만든 낱말 파일")
     s.add_argument("decisions", help='{"decisions":[{"word":…,"keep":true|false,"reason":…,"note":…}]}')
+    s = add("dedupe", cmd_dedupe, "후보 중복 처리: 글자·낱말 집합·활용(Kiwi)이 같으면 하나만, 사용자 후보 먼저. 뺀 것은 기록")
+    s.add_argument("batches", nargs="*")
+    s.add_argument("--user", help="사용자 후보(쉼표 목록 또는 파일). 겹치면 이쪽을 남긴다")
+    s.add_argument("--out", help="남긴 후보를 한 줄에 하나씩(run에 그대로)")
     s = add("risk", cmd_risk, "검증 결과를 키워드별 오독률로")
     s.add_argument("--rules", required=True)
     s.add_argument("--samples", nargs="+", required=True)

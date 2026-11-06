@@ -24,11 +24,12 @@ def _object_particle(word: str) -> str:
     return "을" if "가" <= ch <= "힣" and (ord(ch) - 0xAC00) % 28 else "를"
 
 
-def gen_prompt(brief: dict, profile: dict, n: int = 20) -> str:
+def gen_prompt(brief: dict, profile: dict, n: int = 20, lang: str = "en") -> str:
     """프로필의 격리 생성 틀 + 브리프의 목적·사람 행동. 분야 이름·금지 목록·실패 단어는 넣지 않는다."""
     pairs = [(a["object"], a["action"]) if isinstance(a, dict) else (a[0], a[1]) for a in brief["human_actions"]]
     acts = " ".join(f"{o}{_object_particle(o)} {v}." for o, v in pairs)  # 주체는 늘 사람이라 프롬프트에는 대상·행동만
-    return profile["generator"]["prompt_template"].format(purpose=brief["purpose"].rstrip(". "), human_actions=acts,
+    key = "prompt_template_ko" if lang == "ko" else "prompt_template"
+    return profile["generator"][key].format(purpose=brief["purpose"].rstrip(". "), human_actions=acts,
                                                           max_keywords=profile["max_keywords"], n=n)
 
 
@@ -41,23 +42,29 @@ GEN_PROMPT = gen_prompt(_load(ROOT / "docs/harness/briefs/name-harness.json"), _
 
 
 def normalize(name: str) -> str:
+    if re.search(r"[가-힣]", str(name)):  # 한국어 이름: 한글 낱말을 띄어쓰기 하나로 잇는다(사용자 2026-11-06 "한국어 먼저")
+        return " ".join(re.findall(r"[가-힣]+", str(name)))
     s = re.sub(r"\s+", "-", str(name).strip().lower())
     s = re.sub(r"[^a-z0-9_-]", "", s)
     return re.sub(r"-{2,}", "-", s).strip("-_")
 
 
 def tokens(name: str) -> list[str]:
-    return [t for t in re.split(r"[-_]", name) if t]
+    return [t for t in re.split(r"[-_ ]", name) if t]
 
 
 PLAIN_LINE = re.compile(r"^\s*(?:[-*]|\d+[.)])?\s*([a-z][a-z0-9 _]*(?:-[a-z0-9 _]+)*?)\s*(?:(?:\s[—–-]\s|[—–:]\s*)(.*))?$", re.I)
+
+
+KO_LINE = re.compile(r"^\s*(?:[-*]|\d+[.)])?\s*([가-힣]+(?: [가-힣]+)*)\s*(?:[—–:]|\s-\s)\s*(.*)$")
 
 
 def parse_plain(text: str) -> dict:
     """평문 '이름 — 떠오르는 일' 줄들 → {"candidates": [...]} (parse_candidates가 받는 모양)."""
     cands = []
     for line in str(text).splitlines():
-        m = PLAIN_LINE.match(line.strip().strip("`"))
+        line = line.strip().strip("`")
+        m = KO_LINE.match(line) if re.match(r"(?:[-*]|\d+[.)])?\s*[가-힣]", line) else PLAIN_LINE.match(line)  # 이름이 한글로 시작하면 한국어
         if m and m.group(1).strip():
             cands.append({"name": m.group(1).strip(), "why": (m.group(2) or "").strip()})
     return {"candidates": cands}
@@ -213,6 +220,42 @@ def generate(models: list[str], out_dir: Path, timeout: float = 300, tries: int 
         print(f"묶음 {i} {m}: {r.get('status')} 후보 {len(cands)}개", flush=True)
         paths.append(p)
     return paths
+
+
+_KIWI = None
+
+
+def _morphs(name: str) -> frozenset:
+    """한국어 이름의 내용 형태소(어미·조사 뺌, 품사 대신 형태만): 읽는 이 = 읽은 이 = {읽, 이}. 영어는 낱말 집합."""
+    global _KIWI
+    if not re.search(r"[가-힣]", name):
+        return frozenset(tokens(name))
+    if _KIWI is None:
+        from kiwipiepy import Kiwi
+        _KIWI = Kiwi()
+    return frozenset(t.form for t in _KIWI.tokenize(name) if not t.tag.startswith(("E", "J")))
+
+
+def dedupe(user: list[str], generated: list[str]) -> tuple[list[str], list[dict]]:
+    """후보 중복 처리(규칙, 재현됨, 사용자 2026-11-06). 사용자 후보가 먼저이고, 겹치면 사용자 후보를 남긴다.
+    1) 글자가 같음  2) 낱말 집합이 같음(순서만 다름)  3) 내용 형태소가 같음(활용만 다름).
+    뺀 것은 지우지 않고 [{name, kept_as, reason}]으로 돌려준다(사람이 보고 되살릴 수 있게)."""
+    kept, dropped, keys = [], [], {}
+    for name in list(user) + list(generated):
+        n = normalize(name)
+        if not n:
+            continue
+        checks = [("글자가 같음", ("s", n)), ("낱말이 같고 순서만 다름", ("w", frozenset(tokens(n)))),
+                  ("활용만 다름", ("m", _morphs(n)))]
+        hit = next(((why, keys[k]) for why, k in checks if k in keys), None)
+        if hit:
+            if hit[0] != "글자가 같음":
+                dropped.append({"name": n, "kept_as": hit[1], "reason": hit[0]})
+            continue
+        for _, k in checks:
+            keys[k] = n
+        kept.append(n)
+    return kept, dropped
 
 
 def load_batches(paths) -> list[list[str]]:

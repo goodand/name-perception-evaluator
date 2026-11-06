@@ -118,3 +118,30 @@ def test_combine_keywords_rule_based():
     assert all(c["keywords"][-1] in {"echo", "probe", "check"} for c in got)
     assert "word" not in " ".join(names)  # 한 묶음에만 나온 키워드는 쓰지 않음
     assert got == sorted(got, key=lambda c: (len(c["keywords"]), -c["score"], c["name"]))  # 짧은 이름 먼저
+
+
+def test_korean_names_parse_tokens_and_filter():
+    import namecheck
+    got = nk.parse_candidates("1. 첫눈 독자 — 처음 보고 뜻을 말함\n- 대조 평가자: 비교함\n2. first-reader — x")
+    assert [c["name"] for c in got] == ["첫눈 독자", "대조 평가자", "first-reader"]
+    assert nk.tokens("첫눈 독자") == ["첫눈", "독자"]
+    kept, dropped = namecheck.filter_names(["첫눈 독자", "첫눈-독자", "가 나 다 라"], 3, " ")
+    assert kept == ["첫눈 독자"] and len(dropped) == 2
+
+
+def test_korean_generator_prompt_is_clean():
+    import json
+    import prompt_check
+    prof = json.loads((ROOT / "docs/harness/naming_profile.json").read_text(encoding="utf-8"))
+    brief = {"purpose": "이름만 보고 뜻을 말한다", "human_actions": [{"object": "뜻", "action": "말한다"}]}
+    p = nk.gen_prompt(brief, prof, 20, "ko")
+    assert "한국어 낱말" in p and prompt_check.check(p) == []
+
+
+def test_dedupe_user_first_and_records():
+    kept, dropped = nk.dedupe(["첫눈 독자"], ["첫눈 독자", "독자 첫눈", "읽는 이", "읽은 이", "name-mirror", "mirror-name",
+                                          "처음 읽는 사람"])
+    assert kept == ["첫눈 독자", "읽는 이", "name-mirror", "처음 읽는 사람"]
+    assert {(d["name"], d["kept_as"], d["reason"]) for d in dropped} == {
+        ("독자 첫눈", "첫눈 독자", "낱말이 같고 순서만 다름"), ("읽은 이", "읽는 이", "활용만 다름"),
+        ("mirror-name", "name-mirror", "낱말이 같고 순서만 다름")}
