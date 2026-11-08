@@ -42,15 +42,44 @@ def judge(expl: str, rule: dict) -> tuple[bool, list[str]]:
     return (not why), why
 
 
-def misread_hits(text: str, rule: dict) -> list[tuple[str, str]]:
-    """정규화된 설명에 나온 (분야, 첫 신호어). 분야 이름순, 분야당 하나.
-    보수적: 부정문("SQL JOIN과는 다르다")도 걸린다 → 제외 근거 원문을 남겨 사람이 확인."""
-    hits = []
+# 예를 드는 말(정규화 = 공백 없앤 글 기준). 신호어 바로 앞 EX_WINDOW 글자 안에 앞표지가 있거나 바로 뒤에 뒤표지가 오면 분야 예시
+EX_BEFORE = ("특히", "예를들어", "예컨대", "예로", "가령")
+EX_AFTER = ("등", "같은")  # "이나"는 나열에도 쓰여 뺌(용어 기록자 반례: "사전 편찬이나 … 업무를 담당")
+EX_WINDOW = 12
+
+
+def _in_example(text: str, w: str) -> bool:
+    i = text.find(w)
+    before, after = text[max(0, i - EX_WINDOW):i], text[i + len(w):i + len(w) + 4]
+    return any(m in before for m in EX_BEFORE) or after.startswith(EX_AFTER)
+
+
+def _signal_hits(text: str, rule: dict) -> list[tuple[str, str, bool]]:
+    """(분야, 첫 신호어, 분야 예시인가). 분야 이름순, 분야당 하나."""
+    out, ctx = [], rule.get("example_context")
     for field, words in sorted(rule.get("misread_as", {}).items()):
+        found = [w for w in words if norm(w) in text]
+        if not found:
+            continue
+        role = [w for w in found if not (ctx and _in_example(text, norm(w)))]  # 역할 오독 신호가 하나라도 있으면 오독
+        out.append((field, role[0], False) if role else (field, found[0], True))
+    for field, words in sorted(rule.get("field_examples", {}).items()):
         w = next((w for w in words if norm(w) in text), None)
-        if w is not None:
-            hits.append((field, w))
-    return hits
+        if w is not None and not any(f == field for f, _, _ in out):
+            out.append((field, w, True))
+    return out
+
+
+def misread_hits(text: str, rule: dict) -> list[tuple[str, str]]:
+    """역할 오독(제외 근거): 정규화된 설명에 나온 (분야, 첫 신호어). 분야 이름순, 분야당 하나.
+    보수적: 부정문("SQL JOIN과는 다르다")도 걸린다 → 제외 근거 원문을 남겨 사람이 확인.
+    example_context·field_examples가 있으면 예를 드는 자리의 신호는 분야 예시로 빠진다(field_example_hits)."""
+    return [(f, w) for f, w, ex in _signal_hits(text, rule) if not ex]
+
+
+def field_example_hits(text: str, rule: dict) -> list[tuple[str, str]]:
+    """분야 예시 어긋남(경고만, 제외하지 않음, 사용자 2026-11-06): 역할은 맞고 쓰이는 분야를 이웃 분야로 예를 든 경우."""
+    return [(f, w) for f, w, ex in _signal_hits(text, rule) if ex]
 
 
 def rule_hash(rule: dict) -> str:
@@ -58,6 +87,10 @@ def rule_hash(rule: dict) -> str:
     key = {"term": rule["term"], "must": must, "must_not": sorted(rule.get("must_not", [])), "judge": JUDGE_VERSION}
     if rule.get("misread_as"):  # 비어 있으면 키를 넣지 않음 → 기존 규칙 해시 유지
         key["misread_as"] = {k: sorted(v) for k, v in rule["misread_as"].items()}
+    if rule.get("field_examples"):  # 분야 예시 규칙도 있을 때만(기존 해시 유지)
+        key["field_examples"] = {k: sorted(v) for k, v in rule["field_examples"].items()}
+    if rule.get("example_context"):
+        key["example_context"] = [list(EX_BEFORE), list(EX_AFTER), EX_WINDOW]
     return hashlib.sha256(json.dumps(key, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:12]
 
 
@@ -111,6 +144,7 @@ def score(rules: dict, files: list, allow_stale: bool = False, allow_legacy: boo
     """env_filter(봉투 dict) → bool: 답변자 재실험용(예: 특정 instr_sha만). legacy 표본은 {}로 넘긴다."""
     res = {rid: {"term": r["term"], "pass": 0, "n": 0, "failed": 0, "stale": 0, "legacy": 0, "mismatch": 0,
                  "duplicate": 0, "contrast": {}, "fails": [], "misread": {}, "misread_examples": [], "misread_n": 0,
+                 "field_examples": {}, "field_example_texts": [],
                  "excluded": False, "baseline": bool(r.get("baseline"))} for rid, r in rules.items()}
     for f in files:
         for kind, e, items in _read(f):
@@ -158,6 +192,11 @@ def score(rules: dict, files: list, allow_stale: bool = False, allow_legacy: boo
                 fields = [fd for fd, _ in misread_hits(norm(it.get("explanation", "")), rule)]
                 for fd in fields:
                     s["misread"][fd] = s["misread"].get(fd, 0) + 1
+                fx = [fd for fd, _ in field_example_hits(norm(it.get("explanation", "")), rule)]
+                for fd in fx:
+                    s["field_examples"][fd] = s["field_examples"].get(fd, 0) + 1
+                if fx:
+                    s["field_example_texts"].append(it.get("explanation", ""))
                 if fields:
                     s["misread_n"] += 1  # 오독률 분자: 분야 수가 아니라 오독이 난 표본 수
                     s["misread_examples"].append(it.get("explanation", ""))

@@ -30,7 +30,7 @@ def gen_prompt(brief: dict, profile: dict, n: int = 20, lang: str = "en") -> str
     acts = " ".join(f"{o}{_object_particle(o)} {v}." for o, v in pairs)  # 주체는 늘 사람이라 프롬프트에는 대상·행동만
     key = "prompt_template_ko" if lang == "ko" else "prompt_template"
     return profile["generator"][key].format(purpose=brief["purpose"].rstrip(". "), human_actions=acts,
-                                                          max_keywords=profile["max_keywords"], n=n)
+                                                          max_keywords=profile.get("max_keywords_ko", profile["max_keywords"]) if lang == "ko" else profile["max_keywords"], n=n)
 
 
 def _load(p: Path) -> dict:

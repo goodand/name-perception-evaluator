@@ -120,7 +120,7 @@ def cmd_lint(a):
     import run_naming as rn
 
     prof = _load(PROFILE)
-    kept, dropped = filter_names(_names(a.names), prof["max_keywords"], a.sep)
+    kept, dropped = filter_names(_names(a.names), prof.get("max_keywords_ko", prof["max_keywords"]) if a.sep == " " else prof["max_keywords"], a.sep)
     rules = rn.build_rules(fill_purpose(_load(a.brief)), kept)
     warns = ct.lint_context(rules) + ct.lint_names(rules, _load(ct.RISKY_DEFAULT))
     _emit({"kept": kept, "dropped": dropped, "warnings": warns}, a.json,
@@ -162,7 +162,7 @@ def cmd_run(a):
         _emit({"ok": False, "errors": errs}, a.json, "\n".join(errs))
         return 1
     prof = _load(PROFILE)
-    kept, dropped = filter_names(_names(a.names), prof["max_keywords"], a.sep)
+    kept, dropped = filter_names(_names(a.names), prof.get("max_keywords_ko", prof["max_keywords"]) if a.sep == " " else prof["max_keywords"], a.sep)
     answerers = rn.parse_answerers(a.answerers) if a.answerers else None
     local = [m for k, m in (answerers or rn._answerers(prof)) if k == "qwen"]
     if local and a.no_local:  # GPU를 다른 세션이 쓸 때: 로컬 LLM은 켜지도 부르지도 않는다
@@ -237,6 +237,26 @@ def cmd_combine(a):
     return 0 if cands else 1
 
 
+def cmd_check(a):
+    """규칙 엔진 한 번에(rules.py): 이름 형식·키워드 수·브리프 형식·지시문 개발 용어. 종료 코드 1이면 error 있음."""
+    import rules
+
+    prof = _load(PROFILE)
+    ctx = {"sep": a.sep, "max_keywords": prof.get("max_keywords_ko", prof["max_keywords"]) if a.sep == " " else prof["max_keywords"]}
+    if a.names:
+        ctx["names"] = _names(a.names)
+    if a.brief:
+        ctx["brief"] = _load(Path(a.brief))
+    if a.docs:
+        ctx["docs"], ctx["repo"] = {f: Path(f).read_text(encoding="utf-8") for f in a.docs}, ROOT
+    if a.prompts:
+        ctx["prompts"] = {Path(f).name: Path(f).read_text(encoding="utf-8") for f in a.prompts}
+    rep = rules.report(rules.run(ctx))
+    _emit(rep, a.json, "\n".join(f'{d["id"]} {d["severity"]} {d["where"]}: {d["message"]}' for d in rep["diagnostics"])
+          or f'문제 없음({", ".join(f"{k} {v}" for k, v in rep["counts"].items())})')
+    return rep["exit"]
+
+
 def cmd_dedupe(a):
     user = _names(a.user) if a.user else []
     gen = [n for b in nk.load_batches(a.batches) for n in b]
@@ -272,7 +292,7 @@ def cmd_search(a):
         import plain_runner
 
         with plain_runner.usage(Path(a.out).with_name("usage.jsonl")):
-            state = sw.search(_load(Path(a.brief)), sw.claude_searcher(a.model), a.n)
+            state = sw.search(_load(Path(a.brief)), sw.claude_searcher(a.model), a.n, lang=a.lang)
     except prompt_check.PromptRejected as e:
         _emit({"status": "rejected", "reason": str(e)}, a.json, str(e))
         return 1
@@ -440,10 +460,17 @@ def main(argv=None) -> int:
     s.add_argument("out", help="낱말 파일(words-review가 이어서 씀)")
     s.add_argument("--model", default="sonnet")
     s.add_argument("--n", type=int, default=15)
+    s.add_argument("--lang", default="en", choices=["en", "ko"], help="ko면 한국어 낱말을 찾게 한다")
     s = add("words-review", cmd_words_review,
             "외부 에이전트의 낱말 점검(JSON) 검사, 수정 프로토콜. 0 끝남, 2 걸린 항목만 다시, 1 멈춤(사람이 정함)")
     s.add_argument("words", help="search가 만든 낱말 파일")
     s.add_argument("decisions", help='{"decisions":[{"word":…,"keep":true|false,"reason":…,"note":…}]}')
+    s = add("check", cmd_check, "규칙 엔진(ID·심각도): N001 이름 형식, N002 키워드 수, B001 브리프, P001/P002 지시문 개발 용어, D001~D004 죽은 참조")
+    s.add_argument("--names", help="쉼표 목록 또는 한 줄에 하나인 파일")
+    s.add_argument("--brief")
+    s.add_argument("--prompts", nargs="*", help="지시문 파일들")
+    s.add_argument("--docs", nargs="*", help="죽은 참조를 볼 문서들(D001~D004). 결정 기록·옛 기록은 넣지 않는다")
+    s.add_argument("--sep", default="-", choices=["-", "_", " "])
     s = add("dedupe", cmd_dedupe, "후보 중복 처리: 글자·낱말 집합·활용(Kiwi)이 같으면 하나만, 사용자 후보 먼저. 뺀 것은 기록")
     s.add_argument("batches", nargs="*")
     s.add_argument("--user", help="사용자 후보(쉼표 목록 또는 파일). 겹치면 이쪽을 남긴다")

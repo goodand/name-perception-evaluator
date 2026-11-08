@@ -23,20 +23,27 @@ SEARCH_INSTR = (
     "많이 쓰이는 영어 낱말을 골라 주세요.\n\n하는 일: {purpose}\n사람이 하는 일: {human_actions}\n\n"
     "낱말마다 한 줄씩, '영어 낱말 — 한국어 뜻 — 찾은 곳 주소' 꼴로 {n}개 적어 주세요. 다른 말은 쓰지 마세요."
 )
+SEARCH_INSTR_KO = (
+    "아래 일을 사람들이 실제로 어떤 낱말로 부르는지 찾아 주세요. 사전과 여러 사람이 쓴 글을 찾아보고, "
+    "많이 쓰이는 한국어 낱말을 골라 주세요. 외래어도 한국에서 그대로 쓰면 한글로 적어 주세요.\n\n"
+    "하는 일: {purpose}\n사람이 하는 일: {human_actions}\n\n"
+    "낱말마다 한 줄씩, '한국어 낱말 — 뜻 — 찾은 곳 주소' 꼴로 {n}개 적어 주세요. 다른 말은 쓰지 마세요."
+)
+KO_LINE = re.compile(r"^\s*(?:\d+[.)]\s*)?([가-힣][가-힣 ]*?)\s*[—]\s*(.+?)\s*[—]\s*(\S+)\s*$")
 LINE = re.compile(r"^\s*(?:\d+[.)]\s*)?([A-Za-z][A-Za-z ]*?)\s*[—-]{1,2}\s*(.+?)\s*[—-]{1,2}\s*(\S+)\s*$")
 
 
-def search_prompt(brief: dict, n: int = 15) -> str:
+def search_prompt(brief: dict, n: int = 15, lang: str = "en") -> str:
     acts = brief.get("human_actions", [])
     if isinstance(acts, list):
         acts = "; ".join(" ".join(str(v) for v in a.values()) if isinstance(a, dict) else str(a) for a in acts)
-    return SEARCH_INSTR.format(purpose=brief["purpose"], human_actions=acts, n=n)
+    return (SEARCH_INSTR_KO if lang == "ko" else SEARCH_INSTR).format(purpose=brief["purpose"], human_actions=acts, n=n)
 
 
 def parse(text: str) -> list[dict]:
     out, seen = [], set()
     for ln in text.splitlines():
-        m = LINE.match(ln)
+        m = KO_LINE.match(ln) or LINE.match(ln)
         if m:
             w = m.group(1).strip().lower()
             if w not in seen:
@@ -50,9 +57,9 @@ def keywords(phrases) -> list[str]:
     return list(dict.fromkeys(t for p in phrases for t in re.findall(r"[a-z]+", p.lower())))
 
 
-def search(brief: dict, call, n: int = 15, words: dict | None = None) -> dict:
+def search(brief: dict, call, n: int = 15, words: dict | None = None, lang: str = "en") -> dict:
     """call(지시문) → 평문. 지시문이 사전에 걸리면 보내지 않는다(prompt_check.PromptRejected)."""
-    prompt = search_prompt(brief, n)
+    prompt = search_prompt(brief, n, lang)
     hits = prompt_check.check(prompt, words)
     if hits:
         raise prompt_check.PromptRejected(f'검색자 지시문: {", ".join(h["word"] for h in hits)} — 설명문을 고칠 것')

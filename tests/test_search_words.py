@@ -108,3 +108,10 @@ def test_cli_words_review_exit_codes(tmp_path):
                                            {"word": "tool", "keep": False, "reason": "개발 용어 경고"}]}), encoding="utf-8")
     assert namecheck.main(["words-review", str(w), str(d), "--json"]) == 0
     assert namecheck.main(["words-review", str(w), str(d), "--json"]) == 0  # 끝난 뒤에는 결과만 다시 보여 줌
+
+
+def test_korean_search_prompt_and_parse():
+    p = sw.search_prompt(BRIEF, 5, "ko")
+    assert "한국어 낱말" in p and "영어" not in p.split("외래어")[0] and prompt_check.check(p) == []
+    got = sw.parse("1. 검수자 — 결과를 확인하는 사람 — https://a\n카피라이터 — 광고 글을 쓰는 사람 — https://b")
+    assert [w["word"] for w in got] == ["검수자", "카피라이터"]

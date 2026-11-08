@@ -20,7 +20,8 @@ import collect_variants as cv  # noqa: E402
 
 ROOT = Path(__file__).parents[1]
 PROFILE_DEFAULT = ROOT / "docs/harness/naming_profile.json"
-CONTEXT_KEYS = ("purpose", "human_actions", "distinct_from", "role", "audience", "misread_as", "must")
+CONTEXT_KEYS = ("purpose", "human_actions", "distinct_from", "role", "audience", "misread_as", "must", "field_examples",
+                "example_context")
 
 
 def build_rules(brief: dict, names: list[str]) -> dict:
